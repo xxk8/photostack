@@ -1,100 +1,111 @@
 <!DOCTYPE html>
-<html data-photostack-mode="photo-editor">
+<html lang="zh-CN" data-photostack-mode="photo-editor">
 
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>PhotoStack</title>
+    <title>批量描边工具</title>
     <meta name="robots" content="noindex">
-    <meta name="description" content="PhotoStack can convert, resize, watermark, and crop images in a few clicks.">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/css/photostack-styles.css">
-    <script src="/js/shared.js"></script>
+    <meta name="description" content="批量给图片加描边和圆角，支持缩放、水印、裁剪。所有处理均在本地浏览器中完成，可离线使用。">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link href="../css/bootstrap.min.css?v=20261010" rel="stylesheet">
+    <link rel="stylesheet" href="../css/bootstrap-icons.css?v=20261010">
+    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261010">
+    <script src="../js/shared.js?v=20261010"></script>
     <!-- Icons and theme -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="24x24" href="/img/icon_x24.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="../img/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="24x24" href="../img/icon_x24.png">
+    <link rel="manifest" href="../site.webmanifest">
+    <link rel="shortcut icon" href="../favicon.ico">
     <meta name="theme-color" content="#6c757d">
     <!-- Open Graph card -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="PhotoStack" />
-    <meta property="og:description" content="Convert, resize, watermark, and crop images in a few clicks." />
-    <meta property="og:image" content="https://photostack.app/img/maskable_icon_x512.png" />
+    <meta property="og:title" content="批量描边工具" />
+    <meta property="og:description" content="批量给图片加描边和圆角，支持缩放、水印、裁剪。" />
+    <meta property="og:image" content="../img/maskable_icon_x512.png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
-    <meta name="og:image:alt" content="PhotoStack icon" />
+    <meta name="og:image:alt" content="应用图标" />
     <meta name="twitter:card" content="summary" />
-    <!-- Analytics -->
-    <script defer data-domain="photostack.app" src="https://plausible.io/js/plausible.js"></script>
+    <style>
+        /* 关键布局内联：即使外部样式表偶发加载失败，导航栏与底栏也保持实色、内容不错位 */
+        body { padding-top: 56px; }
+        .navbar.fixed-top { background-color: var(--bs-body-secondary-bg, #f8f9fa); }
+        #photostack-bottom-bar { background: #f8f9fa; }
+        [data-bs-theme="dark"] #photostack-bottom-bar { background: #212529; }
+    </style>
 </head>
 
 <body>
     <!-- Navbar -->
     <nav class="navbar fixed-top bg-body-secondary navbar-expand-sm border-bottom d-print-none">
         <div class="container-fluid">
-            <a class="navbar-brand d-sm-none" href="#">PhotoStack</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <a class="navbar-brand d-sm-none" href="#">批量描边工具</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="切换导航">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">
+                        <a class="nav-link" href="../">
                             <i class="bi bi-house-fill"></i>
-                            Home
+                            首页
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link active" aria-current="page" href="#">
                             <i class="bi bi-images"></i>
-                            Editor
+                            编辑器
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/watermarks/">
+                        <a class="nav-link" href="../outline/">
+                            <i class="bi bi-vector-pen"></i>
+                            自动描边
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="../watermarks/">
                             <i class="bi bi-pencil"></i>
-                            Watermarks
+                            水印
                         </a>
                     </li>
                 </ul>
                 <form class="d-flex flex-column flex-sm-row">
                     <!-- Import button -->
-                    <button class="btn btn-primary me-0 me-sm-2 mt-2 mt-sm-0" id="photostack-import-file-btn" type="button" aria-label="Import">
+                    <button class="btn btn-primary d-none d-md-inline-block me-0 me-sm-2 mt-2 mt-sm-0" id="photostack-import-file-btn" type="button" aria-label="导入">
                         <i class="bi bi-folder-plus me-2 me-sm-0 me-md-2"></i>
-                        <span class="d-sm-none d-md-inline me-2 me-sm-0 me-md-2">Import</span>
+                        <span class="d-sm-none d-md-inline me-2 me-sm-0 me-md-2">导入</span>
                         <span class="badge bg-dark photostack-image-count d-sm-none d-md-inline">0</span>
                     </button>
                     <!-- Clear button -->
-                    <button class="btn btn-primary me-0 me-sm-2 mt-2 mt-sm-0" id="photostack-clear-images-btn" type="button" aria-label="Clear">
+                    <button class="btn btn-primary d-none d-md-inline-block me-0 me-sm-2 mt-2 mt-sm-0" id="photostack-clear-images-btn" type="button" aria-label="清空">
                         <i class="bi bi-trash me-2 me-sm-0 me-md-2"></i>
-                        <span class="d-sm-none d-md-inline">Clear</span>
+                        <span class="d-sm-none d-md-inline">清空</span>
                     </button>
                     <!-- Export button -->
-                    <button class="btn btn-primary me-0 me-sm-2 mt-2 mt-sm-0" type="button" data-bs-toggle="modal" data-bs-target="#photostack-export-modal" data-backdrop="static" data-keyboard="false" disabled aria-label="Export">
+                    <button class="btn btn-primary d-none d-md-inline-block me-0 me-sm-2 mt-2 mt-sm-0" type="button" data-bs-toggle="modal" data-bs-target="#photostack-export-modal" data-backdrop="static" data-keyboard="false" disabled aria-label="导出">
                         <i class="bi bi-save me-2 me-sm-0 me-md-2"></i>
-                        <span class="d-sm-none d-md-inline">Export</span>
+                        <span class="d-sm-none d-md-inline">导出</span>
                     </button>
                     <!-- Theme toggle -->
-                    <button class="btn btn-primary dropdown-toggle mt-2 mt-sm-0" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Toggle theme">
+                    <button class="btn btn-primary dropdown-toggle mt-2 mt-sm-0" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="切换外观">
                         <i class="bi bi-moon-stars-fill me-2 me-sm-0 me-md-2"></i>
-                        <span class="d-sm-none">Change theme</span>
+                        <span class="d-sm-none">外观</span>
                     </button>
                     <div class="dropdown">
                         <ul class="dropdown-menu dropdown-menu-end w-100 w-sm-auto">
                             <li><a class="dropdown-item photostack-theme-btn" data-theme="light" href="#">
                                     <i class="bi bi-brightness-high-fill me-2"></i>
-                                    Light mode
+                                    浅色模式
                                 </a></li>
                             <li><a class="dropdown-item photostack-theme-btn" data-theme="dark" href="#">
                                     <i class="bi bi-moon-fill me-2"></i>
-                                    Dark mode
+                                    深色模式
                                 </a></li>
                             <li><a class="dropdown-item photostack-theme-btn" data-theme="auto" href="#">
                                     <i class="bi bi-circle-half me-2"></i>
-                                    Auto theme
+                                    跟随系统
                                 </a></li>
                         </ul>
                     </div>
@@ -108,11 +119,53 @@
         <div class="row">
             <!-- Preview container -->
             <div class="col-12 col-md-8 photostack-preview-container text-center">
-                <div class="d-inline-flex align-items-center" id="photostack-editor-preview">
-                    <!-- Temporary text for when no photos are imported -->
+                <div id="photostack-preview-wrapper">
+                    <div class="d-inline-flex align-items-center" id="photostack-editor-preview">
+                        <!-- Temporary text for when no photos are imported -->
                     <div id="photostack-preview-info" class="p-3 p-md-5 text-center w-100">
-                        <p>To get started, <span class="d-sm-none">click the menu button at the top-right of the screen, then click <i class="bi bi-folder-plus"></i> Import</span><span class="d-none d-sm-inline">click the <i class="bi bi-folder-plus"></i> Import button at the top-right of the screen</span> to import some images. When you're ready to save your work, click the <i class="bi bi-save"></i> Export button.</p>
-                        <p class="text-muted" id="photostack-file-format-list">Checking supported files...</p>
+                        <p class="mb-3"><i class="bi bi-images photostack-empty-icon"></i></p>
+                        <p>要开始使用，<span class="d-sm-none">请点击屏幕底部的 <i class="bi bi-folder-plus"></i> 导入按钮</span><span class="d-none d-sm-inline">请点击屏幕右上角的 <i class="bi bi-folder-plus"></i> 导入按钮</span>，批量选择图片导入。调整好描边效果后，点击 <i class="bi bi-save"></i> 导出 按钮批量保存，或在预览图下方点击 保存当前图片 单独保存这一张。</p>
+                            <p class="text-muted" id="photostack-file-format-list">正在检测支持的文件格式…</p>
+                        </div>
+                    </div>
+                    <!-- 翻页与单张保存控制条 -->
+                    <div id="photostack-paging-controls" class="d-none d-print-none mt-2 pb-3">
+                        <div class="btn-group w-100" role="group" aria-label="图片翻页">
+                            <button type="button" class="btn btn-outline-secondary" id="photostack-prev-image-btn" disabled>
+                                <i class="bi bi-chevron-left"></i>
+                                上一张
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="photostack-next-image-btn" disabled>
+                                下一张
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="mt-2">
+                            <span class="badge bg-secondary" id="photostack-paging-counter">第 1 / 1 张</span>
+                            <span class="text-muted small ms-2" id="photostack-paging-filename"></span>
+                        </div>
+                        <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
+                            <button type="button" class="btn btn-primary" id="photostack-save-current-btn" disabled>
+                                <i class="bi bi-download me-2"></i><span id="photostack-save-current-btn-text">保存当前图片</span>
+                            </button>
+                            <button type="button" class="btn btn-success" id="photostack-quick-export-btn" disabled>
+                                <i class="bi bi-lightning-charge-fill me-2"></i>一键导出
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="photostack-sort-images-btn" disabled>
+                                <i class="bi bi-sort-down me-2"></i>排序
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="photostack-multi-select-btn" disabled>
+                                <i class="bi bi-check2-square me-2"></i>多选
+                            </button>
+                        </div>
+                        <!-- 多选模式操作行 -->
+                        <div class="d-flex justify-content-center gap-2 mt-2 d-none" id="photostack-select-controls">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="photostack-select-all-btn">全选</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="photostack-select-current-btn">选当前</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="photostack-delete-selected-btn" disabled>删除所选</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="photostack-select-done-btn">完成</button>
+                        </div>
+                        <div class="form-text d-md-none">提示：在预览图上左右滑动也可以翻页</div>
                     </div>
                 </div>
             </div>
@@ -120,114 +173,135 @@
             <div class="col-12 col-md-4 pb-5">
                 <!-- Safari message -->
                 <div class="alert alert-warning photostack-safari-warning mt-3" data-bs-toggle="modal" data-bs-target="#photostack-safari-modal" style="display: none; cursor: pointer;">
-                    Safari may periodically delete PhotoStack's data, including saved watermarks. Click for more information.
+                    Safari 可能会定期清除本工具的本地数据（包括已保存的水印）。点击查看详细说明。
                 </div>
-                <!-- Resize card -->
-                <div class="card mt-3">
+                <!-- Border card -->
+                <div class="card mt-3 border-primary-subtle">
                     <div class="card-header">
-                        Resize
+                        描边与圆角
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="photostack-image-width" class="form-label">Maximum image width (pixels)</label>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-image-width" autocomplete="off" enterkeyhint="done" placeholder="500">
+                            <label class="form-label mb-1">我的模板 <small class="text-muted">点按即应用到全部图片</small></label>
+                            <div id="photostack-preset-row" class="photostack-preset-row"></div>
                         </div>
-                        <div class="mb-3">
-                            <button class="btn btn-primary w-100" type="button" id="photostack-reset-image-width-button">Reset image size</button>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text">描边粗细 (px)</span>
+                            <input type="number" class="form-control photostack-preview-update" id="photostack-border-width" autocomplete="off" min="0" placeholder="0" enterkeyhint="done">
+                            <input type="color" class="form-control form-control-color photostack-preview-update" id="photostack-border-color" autocomplete="off" value="#FFFFFF" title="描边颜色">
                         </div>
-                        <div class="mb-0">
-                            <label for="photostack-resize-unsharp-amount" class="form-label">Sharpness</label>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-resize-unsharp-amount" autocomplete="off" value="50" placeholder="50" min="1" max="100" enterkeyhint="done">
-                            <div class="form-text">Choose a value from 1-100. Default is 50.</div>
+                        <div class="photostack-swatch-row" role="group" aria-label="常用描边颜色">
+                            <button type="button" class="photostack-swatch" data-color="#FFFFFF" style="background:#FFFFFF" aria-label="白色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#000000" style="background:#000000" aria-label="黑色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#6C757D" style="background:#6C757D" aria-label="灰色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#DC3545" style="background:#DC3545" aria-label="红色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#FD7E14" style="background:#FD7E14" aria-label="橙色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#FFC107" style="background:#FFC107" aria-label="黄色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#198754" style="background:#198754" aria-label="绿色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#0D6EFD" style="background:#0D6EFD" aria-label="蓝色"></button>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input photostack-preview-update" type="checkbox" role="switch" id="photostack-corners-round" checked>
+                            <label class="form-check-label" for="photostack-corners-round">圆角平滑</label>
+                        </div>
+                        <div class="mb-0 mt-2">
+                            <label for="photostack-corner-smoothness" class="form-label">平滑度 <span class="badge bg-secondary ms-1" id="photostack-corner-smoothness-value">4%</span></label>
+                            <input type="range" class="form-range photostack-preview-update" id="photostack-corner-smoothness" min="1" max="20" step="1" value="4">
+                            <div class="form-text">圆角按每张图的短边比例自动适配；描边向外扩展，不遮挡内容。</div>
                         </div>
                     </div>
                 </div>
-                <!-- Advertisements card -->
+                <!-- 更多设置折叠（手机端收纳次要功能，桌面端强制展开） -->
+                <div class="card mt-3 d-md-none">
+                    <button class="card-header btn text-start d-flex justify-content-between align-items-center" type="button" id="photostack-more-toggle" data-bs-toggle="collapse" data-bs-target="#photostack-more-settings" aria-expanded="false" aria-controls="photostack-more-settings">
+                        <span>更多设置</span>
+                        <i class="bi bi-chevron-down photostack-collapse-chevron"></i>
+                    </button>
+                </div>
+                <div class="collapse" id="photostack-more-settings">
+                <!-- Resize card -->
                 <div class="card mt-3">
                     <div class="card-header">
-                        Advertisement
+                        缩放
                     </div>
-                    <div class="card-body" style="padding: 0; overflow: hidden;">
-                        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8658798838164073" data-ad-slot="2199465112" data-ad-format="auto" data-full-width-responsive="true"></ins>
-                        <div class="photostack-ads-fallback p-3">
-                            You're blocking ads! Please <a href="/#support">donate</a> to support continued development!
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="photostack-image-width" class="form-label">最大图片宽度（像素）</label>
+                            <input type="number" class="form-control photostack-preview-update" id="photostack-image-width" autocomplete="off" enterkeyhint="done" placeholder="500">
                         </div>
-                        <script>
-                            (adsbygoogle = window.adsbygoogle || []).push({});
-                        </script>
+                        <div class="mb-3">
+                            <button class="btn btn-primary w-100" type="button" id="photostack-reset-image-width-button">恢复原始尺寸</button>
+                        </div>
+                        <div class="mb-0">
+                            <label for="photostack-resize-unsharp-amount" class="form-label">清晰度</label>
+                            <input type="number" class="form-control photostack-preview-update" id="photostack-resize-unsharp-amount" autocomplete="off" value="50" placeholder="50" min="1" max="100" enterkeyhint="done">
+                            <div class="form-text">选择 1-100 之间的数值，默认为 50。</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Crop card -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        裁剪
+                    </div>
+                    <div class="card-body pt-0">
+                        <div class="row g-2 mt-1">
+                            <div class="col-6">
+                                <label for="photostack-crop-top" class="form-label mb-1">上 <span class="badge bg-secondary" id="photostack-crop-top-value">0</span></label>
+                                <input type="range" class="form-range photostack-preview-update" id="photostack-crop-top" autocomplete="off" min="0" max="1000" step="1" value="0">
+                            </div>
+                            <div class="col-6">
+                                <label for="photostack-crop-left" class="form-label mb-1">左 <span class="badge bg-secondary" id="photostack-crop-left-value">0</span></label>
+                                <input type="range" class="form-range photostack-preview-update" id="photostack-crop-left" autocomplete="off" min="0" max="1000" step="1" value="0">
+                            </div>
+                            <div class="col-6">
+                                <label for="photostack-crop-right" class="form-label mb-1">右 <span class="badge bg-secondary" id="photostack-crop-right-value">0</span></label>
+                                <input type="range" class="form-range photostack-preview-update" id="photostack-crop-right" autocomplete="off" min="0" max="1000" step="1" value="0">
+                            </div>
+                            <div class="col-6">
+                                <label for="photostack-crop-bottom" class="form-label mb-1">下 <span class="badge bg-secondary" id="photostack-crop-bottom-value">0</span></label>
+                                <input type="range" class="form-range photostack-preview-update" id="photostack-crop-bottom" autocomplete="off" min="0" max="1000" step="1" value="0">
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="form-text text-muted mb-0">拖动即裁剪，预览实时显示。</small>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="photostack-crop-reset">全部清零</button>
+                        </div>
                     </div>
                 </div>
                 <!-- Watermarks card-->
                 <div class="card mt-3">
                     <div class="card-header">
-                        Watermark
+                        水印
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
                             <select class="form-select photostack-preview-update" id="photostack-watermark-select" autocomplete="off">
-                                <option selected value="no-watermark">No watermark</option>
+                                <option selected value="no-watermark">无水印</option>
                             </select>
                         </div>
-                        <a href="/watermarks">Edit watermarks</a>
-                    </div>
-                </div>
-                <!-- Border card -->
-                <div class="card mt-3">
-                    <div class="card-header">
-                        Border
-                    </div>
-                    <div class="card-body">
-                        <div class="input-group">
-                            <input type="number" class="form-control input-group photostack-preview-update" placeholder="Border width (px)" id="photostack-border-width" autocomplete="off" min="0" enterkeyhint="done">
-                            <input type="color" class="form-control form-control-color input-group photostack-preview-update" id="photostack-border-color" autocomplete="off" value="#00FF00">
-                        </div>
-                    </div>
-                </div>
-                <!-- Resize card -->
-                <div class="card mt-3">
-                    <div class="card-header">
-                        Crop
-                    </div>
-                    <div class="card-body pt-0 row">
-                        <div class="col-12 col-sm-6 mt-3">
-                            <label for="photostack-crop-top" class="form-label">Top</label>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-crop-top" autocomplete="off" enterkeyhint="done" value="0">
-                        </div>
-                        <div class="col-12 col-sm-6 mt-3">
-                            <label for="photostack-crop-left" class="form-label">Left</label>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-crop-left" autocomplete="off" enterkeyhint="done" value="0">
-                        </div>
-                        <div class="col-12 col-sm-6 mt-3">
-                            <label for="photostack-crop-right" class="form-label">Right</label>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-crop-right" autocomplete="off" enterkeyhint="done" value="0">
-                        </div>
-                        <div class="col-12 col-sm-6 mt-3">
-                            <label for="photostack-crop-bottom" class="form-label">Bottom</label>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-crop-bottom" autocomplete="off" enterkeyhint="done" value="0">
-                        </div>
-                        <div class="col-12 mt-3">
-                            <small class="form-text text-muted">Enter the number of pixels you want to remove from each side. Cropping occurs before resizing.</small>
-                        </div>
+                        <a href="../watermarks/">编辑水印</a>
                     </div>
                 </div>
                 <!-- Other options card-->
                 <div class="card mt-3 mb-3">
                     <div class="card-header">
-                        Miscellaneous
+                        其他
                     </div>
                     <div class="card-body">
                         <div class="form-check form-check-inline">
                             <input class="form-check-input" type="checkbox" id="photostack-exif" checked disabled>
-                            <label class="form-check-label" for="photostack-exif">Remove EXIF data</label>
+                            <label class="form-check-label" for="photostack-exif">移除 EXIF 数据</label>
                         </div>
                     </div>
                 </div>
-                <p>
-                    <a href="#" data-bs-toggle="modal" data-bs-target="#photostack-keyboard-modal" data-backdrop="static" data-keyboard="false">Keyboard shortcuts</a>
+                <p class="text-center mb-0 mt-3">
+                    <a href="#" data-bs-toggle="modal" data-bs-target="#photostack-keyboard-modal" data-backdrop="static" data-keyboard="false">键盘快捷键</a>
+                    <span class="mx-2 text-muted">·</span>
+                    <a href="#" id="photostack-print-btn">打印预览</a>
                 </p>
-                <p>
-                    <a href="#" id="photostack-print-btn">Print preview</a>
-                </p>
+                </div>
+                </div>
             </div>
         </div>
     </div>
@@ -236,52 +310,58 @@
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="photostack-export-modal-label">Keyboard shortcuts</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="photostack-export-modal-label">键盘快捷键</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
-                    <p>PhotoStack offers keyboard shortcuts for common functions. They may not work with all browsers.</p>
+                    <p>常用功能均提供键盘快捷键（部分浏览器可能不支持）。</p>
                     <p>
                     <table class="table">
                         <thead>
                             <tr>
-                                <th scope="col">Command</th>
-                                <th scope="col">Shortcuts</th>
+                                <th scope="col">功能</th>
+                                <th scope="col">快捷键</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Import images</td>
+                                <td>导入图片</td>
                                 <td>
-                                    Ctrl + Shift + I (PC)
+                                    Ctrl + Shift + I（Windows）
                                     <br />
-                                    Cmd + Shift + I (Mac)
+                                    Cmd + Shift + I（Mac）
                                 </td>
                             </tr>
                             <tr>
-                                <td>Export images</td>
+                                <td>导出图片</td>
                                 <td>
-                                    Ctrl + S (PC)
+                                    Ctrl + S（Windows）
                                     <br />
-                                    Cmd + S (Mac)
+                                    Cmd + S（Mac）
                                     <br />
                                     Shift + E
                                 </td>
                             </tr>
                             <tr>
-                                <td>Clear imported images</td>
+                                <td>清空已导入图片</td>
                                 <td>
-                                    Ctrl + D (PC)
+                                    Ctrl + D（Windows）
                                     <br />
-                                    Cmd + D (Mac)
+                                    Cmd + D（Mac）
                                 </td>
                             </tr>
                             <tr>
-                                <td>Print image preview</td>
+                                <td>上一张 / 下一张</td>
                                 <td>
-                                    Ctrl + P (PC)
+                                    ← / →
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>打印预览</td>
+                                <td>
+                                    Ctrl + P（Windows）
                                     <br>
-                                    Cmd + P (Mac)
+                                    Cmd + P（Mac）
                                 </td>
                             </tr>
                         </tbody>
@@ -296,13 +376,13 @@
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="photostack-safari-modal-label">Important info for Safari</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="photostack-safari-modal-label">Safari 用户须知</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Safari has a <a href="https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/" target="_blank">seven-day cap on all locally-stored data</a> by websites in version 13.1 and higher. Unless you open PhotoStack at least once a week, <b>your saved watermarks could be deleted</b>.</p>
-                    <p>You can avoid data deletion, and hide the warning in PhotoStack, by adding PhotoStack to your Home Screen on iOS or Dock on macOS. The installed version of PhotoStack uses its own data storage that is not automatically deleted.</p>
-                    <p>You can also periodically export your watermarks as files, then re-import them after Safari wipes PhotoStack's data.</p>
+                    <p>Safari 13.1 及以上版本对网站的本地存储数据有 <a href="https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/" target="_blank">七天自动清除的限制</a>。如果你至少每周不打开一次本工具，<b>已保存的水印可能会被删除</b>。</p>
+                    <p>把本工具添加到 iPhone 的主屏幕（或 macOS 的程序坞）即可避免数据被清除，添加后本工具会使用独立的存储空间，不会被自动删除，同时也不会再显示这条提示。</p>
+                    <p>你也可以定期把水印导出为文件备份，等 Safari 清除数据后再重新导入。</p>
                 </div>
             </div>
         </div>
@@ -313,7 +393,7 @@
             <div class="modal-content">
                 <div class="modal-body">
                     <div class="modal-body text-center lead">
-                        Drop images to import
+                        松开鼠标即可导入图片
                     </div>
                 </div>
             </div>
@@ -326,81 +406,82 @@
             <div class="modal-content photostack-export-modal-initial">
                 <div class="modal-header">
                     <h5 class="modal-title" id="photostack-export-modal-label">
-                        Export
+                        导出
                         <span class="photostack-image-count">0</span>
-                        images
+                        张图片
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="photostack-file-format">File format</label>
+                        <label for="photostack-file-format">文件格式</label>
                         <select class="form-select mt-1" id="photostack-file-format" autocomplete="on">
                             <option value="image/jpeg">JPEG (.jpg)</option>
-                            <option value="image/png">Portable Network Graphics (.png)</option>
+                            <option value="image/png">PNG (.png)</option>
                             <option value="image/webp">WebP (.webp)</option>
                         </select>
-                        <small class="form-text text-muted">Image format support varies by browser.</small>
+                        <small class="form-text text-muted">实际可用的格式因浏览器而异。</small>
                     </div>
                     <div class="mb-3">
-                        <label for="photostack-file-quality">Image quality</label>
+                        <label for="photostack-file-quality">图片质量</label>
                         <input type="number" class="form-control mt-1" id="photostack-file-quality" value="92" min="1" max="100" autocomplete="on" enterkeyhint="done">
-                        <small class="form-text text-muted">Choose a value from 1-100.</small>
+                        <small class="form-text text-muted">选择 1-100 之间的数值。</small>
                     </div>
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="photostack-file-name" value="photostack-file-keep-name" id="photostack-file-keep-name">
                             <label class="form-check-label" for="photostack-file-keep-name">
-                                Keep original file names
+                                保留原始文件名
                             </label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="photostack-file-name" value="photostack-file-use-pattern" id="photostack-file-use-pattern" checked>
                             <label class="form-check-label" for="photostack-file-use-pattern">
-                                Use pattern for file names
+                                使用统一的命名格式
                             </label>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <input type="text" class="form-control" id="photostack-file-name-pattern" autocomplete="on" placeholder="Name pattern" value="Image" enterkeyhint="done">
+                        <input type="text" class="form-control" id="photostack-file-name-pattern" autocomplete="on" placeholder="命名格式" value="图片" enterkeyhint="done">
                     </div>
-                    <button type="button" id="photostack-start-export-btn" class="btn w-100 btn-primary">Start export</button>
+                    <button type="button" id="photostack-start-export-btn" class="btn w-100 btn-primary">开始导出</button>
+                    <small class="form-text text-muted d-block mt-2">导出将按导入顺序处理全部图片。</small>
                 </div>
             </div>
             <!-- Export in progress modal -->
             <div class="modal-content photostack-export-modal-loading" style="display:none">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="photostack-export-modal-label">Export images</h5>
+                    <h5 class="modal-title" id="photostack-export-modal-label">正在导出图片</h5>
                 </div>
                 <div class="modal-body">
-                    <p style="text-align: center;">Please wait while the images are being exported...</p>
+                    <p style="text-align: center;">请稍候，图片正在导出……</p>
                     <p>
                     <div class="progress" style="height: 20px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%" id="photostack-export-modal-progress"></div>
                     </div>
                     </p>
                     <p class="text-muted" style="text-align: center;">
-                        Some browsers throttle background windows and tabs. To speed up exports, don't minimize PhotoStack or switch to another tab/window.
+                        部分浏览器会限制后台页面的运行速度。为了加快导出，请勿最小化本页面或切换到其他标签页。
                     </p>
                 </div>
             </div>
             <!-- Completed export modal -->
             <div class="modal-content photostack-export-modal-finished" style="display:none">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="photostack-export-modal-label">Export images</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="photostack-export-modal-label">正在导出图片</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
                     <div id="photostack-legacy-download">
                         <button type="button" id="photostack-export-separate-button" class="btn w-100 btn-primary">
-                            Save images to Downloads
+                            逐张下载保存
                             <br>
-                            (may not work in all browsers)
+                            （部分浏览器可能不支持）
                         </button>
                     </div>
-                    <button type="button" id="photostack-export-filesystem-api-button" class="btn w-100 btn-primary mt-3">Save images to device</button>
-                    <button type="button" id="photostack-export-web-share-button" class="btn w-100 btn-primary mt-3">Share images to installed application</button>
-                    <button type="button" id="photostack-export-zip-button" class="btn w-100 btn-primary mt-3">Save images as ZIP</button>
+                    <button type="button" id="photostack-export-filesystem-api-button" class="btn w-100 btn-primary mt-3">保存到设备文件夹</button>
+                    <button type="button" id="photostack-export-web-share-button" class="btn w-100 btn-primary mt-3">通过系统分享保存</button>
+                    <button type="button" id="photostack-export-zip-button" class="btn w-100 btn-primary mt-3">保存为 ZIP</button>
                 </div>
             </div>
         </div>
@@ -411,7 +492,7 @@
         <div id="photostack-import-toast" class="toast m-2 m-md-4" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="toast-body">
                 <div class="d-flex align-items-center">
-                    <strong>Importing photos...</strong>
+                    <strong>正在导入图片…</strong>
                     <div class="spinner-border spinner-border-sm ms-auto" role="status" aria-hidden="true"></div>
                 </div>
             </div>
@@ -422,12 +503,25 @@
         <!-- Import toast -->
         <div id="photostack-error-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="toast-header">
-                <strong class="me-auto">Error :(</strong>
+                <strong class="me-auto">出错了 :(</strong>
             </div>
             <div class="toast-body">
-                There was an error, please try that again in a few seconds or reload PhotoStack.
+                出现错误，请稍等几秒后重试，或刷新页面。
             </div>
         </div>
+    </div>
+    <!-- 手机底部快捷操作栏（与导航栏呼应的小巧样式） -->
+    <div id="photostack-bottom-bar" class="d-md-none d-print-none border-top" role="group" aria-label="快捷操作">
+        <button type="button" class="btn btn-primary" id="photostack-bb-import-btn" aria-label="导入图片">
+            <i class="bi bi-folder-plus me-1"></i>导入
+            <span class="badge rounded-pill bg-light text-dark photostack-image-count d-none">0</span>
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="photostack-bb-save-btn" disabled aria-label="保存当前图片">
+            <i class="bi bi-download me-1"></i>保存当前
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="photostack-bb-export-btn" data-bs-toggle="modal" data-bs-target="#photostack-export-modal" disabled aria-label="批量导出">
+            <i class="bi bi-save me-1"></i>导出
+        </button>
     </div>
     <!-- Print UI -->
     <div class="d-none d-print-block text-center">
@@ -442,14 +536,13 @@
     <!-- Watermark image cache -->
     <img id="photostack-watermark-cache">
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/localforage@1.9.0/dist/localforage.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pica@7.0.0/dist/pica.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="/js/photostack-editor.js"></script>
-    <script src="/js/register-sw.js"></script>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8658798838164073" crossorigin="anonymous"></script>
+    <script src="../js/FileSaver.min.js?v=20261010"></script>
+    <script src="../js/jszip.min.js?v=20261010"></script>
+    <script src="../js/localforage.min.js?v=20261010"></script>
+    <script src="../js/pica.min.js?v=20261010"></script>
+    <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
+    <script src="../js/photostack-editor.js?v=20261010"></script>
+    <script src="../js/register-sw.js?v=20261010"></script>
 </body>
 
 </html>

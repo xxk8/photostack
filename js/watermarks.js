@@ -63,7 +63,7 @@ function openWatermarkEditor(watermarkKey) {
         var editorModalEl = bootstrap.Modal.getOrCreateInstance(document.getElementById('photostack-watermark-editor-modal'))
         editorModalEl.show()
     }).catch(function (err) {
-        alert('Error: ' + err)
+        alert('出错了：' + err)
         console.error(err)
     })
 }
@@ -82,7 +82,7 @@ watermarkEditor.querySelector('#photostack-watermark-import-image').addEventList
         image.src = reader.result
     }
     reader.onerror = function (err) {
-        alert('Error: ' + err)
+        alert('出错了：' + err)
         console.error(err)
     }
     // Once both the reader and image is done, we can safely add it to the originals container and clean up
@@ -147,7 +147,7 @@ watermarkEditor.querySelector('#photostack-watermark-editor-save-btn').addEventL
         // Close modal once saved
         editorModalEl.hide()
     }).catch(function (err) {
-        alert('Error: ' + err)
+        alert('出错了：' + err)
         console.error(err)
     })
 })
@@ -160,18 +160,18 @@ function exportWatermark(watermarkKey) {
         var blob = new Blob([watermarkText], { type: 'application/json;charset=utf-8' })
         saveAs(blob, fileName)
     }).catch(function (err) {
-        alert('Error: ' + err)
+        alert('出错了：' + err)
         console.error(err)
     })
 }
 
 // Delete watermark from storage
 function deleteWatermark(watermarkKey) {
-    if (confirm('Are you sure you want to delete the watermark "' + watermarkKey + '"? This cannot be undone.')) {
+    if (confirm('确定要删除水印「' + watermarkKey + '」吗？此操作无法撤销。')) {
         watermarksStore.removeItem(watermarkKey).then(function () {
             refreshWatermarks()
         }).catch(function (err) {
-            alert('Error: ' + err)
+            alert('出错了：' + err)
             console.error(err)
         })
     }
@@ -191,7 +191,7 @@ function importWatermarkSettings(el) {
                 try {
                     var watermarkObj = JSON.parse(reader.result)
                 } catch (err) {
-                    alert('Error: ' + err)
+                    alert('出错了：' + err)
                     console.error(err)
                     return resolve()
                 }
@@ -200,7 +200,7 @@ function importWatermarkSettings(el) {
                 watermarksStore.setItem(watermarkName, watermarkObj).then(function () {
                     resolve()
                 }).catch(function (err) {
-                    alert('Error: ' + err)
+                    alert('出错了：' + err)
                     console.error(err)
                     return resolve()
                 })
@@ -241,7 +241,7 @@ async function refreshWatermarks() {
         cardBody.appendChild(cardTitle);
         // Add edit button
         var editBtn = document.createElement('button')
-        editBtn.innerHTML = '<i class="bi bi-pencil me-2"></i>Edit';
+        editBtn.innerHTML = '<i class="bi bi-pencil me-2"></i>编辑';
         editBtn.classList.add('btn', 'btn-primary', 'me-2', 'mt-1');
         editBtn.addEventListener('click', function () {
             openWatermarkEditor(key);
@@ -249,7 +249,7 @@ async function refreshWatermarks() {
         cardBody.appendChild(editBtn);
         // Add export button
         var exportBtn = document.createElement('button');
-        exportBtn.innerHTML = '<i class="bi bi-save me-2"></i>Export';
+        exportBtn.innerHTML = '<i class="bi bi-save me-2"></i>导出';
         exportBtn.classList.add('btn', 'btn-secondary', 'me-2', 'mt-1');
         exportBtn.addEventListener('click', function () {
             exportWatermark(key);
@@ -257,7 +257,7 @@ async function refreshWatermarks() {
         cardBody.appendChild(exportBtn);
         // Add delete button
         var deleteBtn = document.createElement('button');
-        deleteBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Delete';
+        deleteBtn.innerHTML = '<i class="bi bi-trash me-2"></i>删除';
         deleteBtn.classList.add('btn', 'btn-danger', 'mt-1');
         deleteBtn.addEventListener('click', function () {
             deleteWatermark(key);
@@ -270,7 +270,7 @@ async function refreshWatermarks() {
 }
 
 document.getElementById('photostack-watermark-new-btn').addEventListener('click', function () {
-    var name = prompt('What do you want to call the watermark?')
+    var name = prompt('给这个水印起个名字：')
     if (name && (name != '')) {
         // Create new watermark in storage
         watermarksStore.setItem(name, {
@@ -284,7 +284,7 @@ document.getElementById('photostack-watermark-new-btn').addEventListener('click'
             openWatermarkEditor(name)
             refreshWatermarks()
         }).catch(function (err) {
-            alert('Error: ' + err)
+            alert('出错了：' + err)
             console.error(err)
         })
     }

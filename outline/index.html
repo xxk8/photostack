@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-photostack-mode="outline-tool">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>自动描边</title>
+    <meta name="robots" content="noindex">
+    <meta name="description" content="批量按顺序导入图片，自动加描边和圆角，翻页预览，单张保存或按导入顺序批量导出。所有处理均在本地浏览器中完成，可离线使用。">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link href="../css/bootstrap.min.css?v=20261010" rel="stylesheet">
+    <link rel="stylesheet" href="../css/bootstrap-icons.css?v=20261010">
+    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261010">
+    <script src="../js/shared.js?v=20261010"></script>
+    <!-- Icons and theme -->
+    <link rel="apple-touch-icon" sizes="180x180" href="../img/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="24x24" href="../img/icon_x24.png">
+    <link rel="manifest" href="../site.webmanifest">
+    <link rel="shortcut icon" href="../favicon.ico">
+    <meta name="theme-color" content="#6c757d">
+    <!-- Open Graph card -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="自动描边" />
+    <meta property="og:description" content="批量按顺序导入图片，自动加描边和圆角，翻页预览，单张保存或按导入顺序批量导出。" />
+    <meta property="og:image" content="../img/maskable_icon_x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta name="og:image:alt" content="应用图标" />
+    <meta name="twitter:card" content="summary" />
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar fixed-top bg-body-secondary navbar-expand-sm border-bottom">
+        <div class="container-fluid">
+            <a class="navbar-brand d-sm-none" href="#">自动描边</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="切换导航">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="../">
+                            <i class="bi bi-house-fill"></i>
+                            首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="../edit/">
+                            <i class="bi bi-images"></i>
+                            编辑器
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">
+                            <i class="bi bi-vector-pen"></i>
+                            自动描边
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="../watermarks/">
+                            <i class="bi bi-pencil"></i>
+                            水印
+                        </a>
+                    </li>
+                </ul>
+                <form class="d-flex flex-column flex-sm-row">
+                    <!-- Theme toggle -->
+                    <button class="btn btn-primary dropdown-toggle mt-2 mt-sm-0" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="切换外观">
+                        <i class="bi bi-moon-stars-fill me-2 me-sm-0 me-md-2"></i>
+                        <span class="d-sm-none">外观</span>
+                    </button>
+                    <div class="dropdown">
+                        <ul class="dropdown-menu dropdown-menu-end w-100 w-sm-auto">
+                            <li><a class="dropdown-item photostack-theme-btn" data-theme="light" href="#">
+                                    <i class="bi bi-brightness-high-fill me-2"></i>
+                                    浅色模式
+                                </a></li>
+                            <li><a class="dropdown-item photostack-theme-btn" data-theme="dark" href="#">
+                                    <i class="bi bi-moon-fill me-2"></i>
+                                    深色模式
+                                </a></li>
+                            <li><a class="dropdown-item photostack-theme-btn" data-theme="auto" href="#">
+                                    <i class="bi bi-circle-half me-2"></i>
+                                    跟随系统
+                                </a></li>
+                        </ul>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main container -->
+    <div class="container mt-3 mb-5">
+
+        <!-- 空状态：尚未导入图片 -->
+        <div id="photostack-outline-empty" class="text-center mt-4 pt-3">
+            <p class="mb-3"><i class="bi bi-vector-pen photostack-empty-icon"></i></p>
+            <p class="mb-1">批量按顺序导入图片，自动加描边和圆角。</p>
+            <p class="text-muted small">支持翻页预览、单张保存或按导入顺序批量导出，所有处理都在本机完成。</p>
+            <div class="row justify-content-center mt-4">
+                <div class="col-12 col-sm-7 col-md-4">
+                    <button type="button" id="photostack-outline-import-btn" class="btn btn-primary btn-lg w-100">
+                        <i class="bi bi-folder-plus me-2"></i>选择图片
+                    </button>
+                </div>
+            </div>
+            <p class="text-muted mt-3" id="photostack-outline-format-list">正在检测支持的文件格式…</p>
+        </div>
+
+        <!-- 工作区：导入图片后显示 -->
+        <div id="photostack-outline-workspace" class="d-none">
+
+            <!-- 预览区：吸附在导航下方，调设置时效果始终可见 -->
+            <div id="photostack-outline-sticky">
+                <div class="text-center">
+                    <canvas id="photostack-outline-preview" width="1" height="1" aria-label="描边效果预览（左右拖动切换图片）"></canvas>
+                    <div class="mt-2">
+                        <span class="badge bg-secondary" id="photostack-outline-counter">第 1 / 1 张</span>
+                        <span class="text-muted small ms-2" id="photostack-outline-filename"></span>
+                    </div>
+                    <!-- 保存操作 -->
+                    <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
+                        <button type="button" class="btn btn-primary" id="photostack-outline-save-btn" disabled>
+                            <i class="bi bi-download me-2"></i><span id="photostack-outline-save-btn-text">保存当前</span>
+                        </button>
+                        <button type="button" class="btn btn-success" id="photostack-outline-export-btn" disabled>
+                            <i class="bi bi-collection me-2"></i>批量导出 ZIP
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="photostack-outline-append-btn" disabled>
+                            <i class="bi bi-folder-plus me-2"></i>追加
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" id="photostack-outline-clear-btn" disabled>
+                            <i class="bi bi-trash me-2"></i>清空
+                        </button>
+                    </div>
+                    <div class="form-text mb-0">在预览图上左右拖动即可切换图片</div>
+                </div>
+            </div>
+
+            <!-- 缩略图条：序号即导出顺序 -->
+            <div id="photostack-outline-thumbs" class="photostack-thumb-row mt-2" aria-label="已导入图片（按导出顺序排列）"></div>
+
+            <!-- 描边设置 -->
+            <div class="card mt-3 border-primary-subtle mb-3">
+                <div class="card-header">
+                    描边设置 <small class="text-muted ms-1">作用于全部图片</small>
+                </div>
+                <div class="card-body">
+                    <!-- 描边粗细 -->
+                    <label for="photostack-outline-width" class="form-label">描边粗细 <span class="badge bg-secondary ms-1" id="photostack-outline-width-value">3%</span></label>
+                    <input type="range" class="form-range" id="photostack-outline-width" min="0" max="10" step="0.5" value="3" autocomplete="off">
+
+                    <!-- 描边颜色 -->
+                    <label class="form-label mt-3 mb-1" for="photostack-outline-color">描边颜色</label>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="photostack-swatch-row" id="photostack-outline-swatches" role="group" aria-label="常用描边颜色">
+                            <button type="button" class="photostack-swatch" data-color="#FFFFFF" style="background:#FFFFFF" aria-label="白色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#000000" style="background:#000000" aria-label="黑色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#6C757D" style="background:#6C757D" aria-label="灰色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#DC3545" style="background:#DC3545" aria-label="红色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#FD7E14" style="background:#FD7E14" aria-label="橙色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#FFC107" style="background:#FFC107" aria-label="黄色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#198754" style="background:#198754" aria-label="绿色"></button>
+                            <button type="button" class="photostack-swatch" data-color="#0D6EFD" style="background:#0D6EFD" aria-label="蓝色"></button>
+                        </div>
+                        <input type="color" class="form-control form-control-color" id="photostack-outline-color" value="#FFFFFF" title="自定义描边颜色" autocomplete="off">
+                    </div>
+
+                    <!-- 圆角 -->
+                    <label class="form-label mt-3 mb-1">圆角</label>
+                    <div class="btn-group w-100" role="group" aria-label="圆角设置" id="photostack-outline-corner-group">
+                        <button type="button" class="btn btn-outline-secondary" data-corner="square" aria-pressed="false">直角</button>
+                        <button type="button" class="btn btn-outline-secondary active" data-corner="round" aria-pressed="true">平滑（自动）</button>
+                    </div>
+
+                    <!-- 更多设置：手机端收纳低频选项，桌面端自动展开 -->
+                    <button class="btn btn-link text-decoration-none p-0 mt-3 d-flex justify-content-between align-items-center w-100" type="button" id="photostack-more-toggle" data-bs-toggle="collapse" data-bs-target="#photostack-more-settings" aria-expanded="false" aria-controls="photostack-more-settings">
+                        <span>更多设置</span>
+                        <i class="bi bi-chevron-down photostack-collapse-chevron"></i>
+                    </button>
+                    <div class="collapse" id="photostack-more-settings">
+                        <label class="form-label mt-3 mb-1">导出最长边</label>
+                        <div class="btn-group w-100" role="group" aria-label="导出尺寸限制" id="photostack-outline-maxedge-group">
+                            <button type="button" class="btn btn-outline-secondary active" data-maxedge="0" aria-pressed="true">原图</button>
+                            <button type="button" class="btn btn-outline-secondary" data-maxedge="2048" aria-pressed="false">2048px</button>
+                            <button type="button" class="btn btn-outline-secondary" data-maxedge="4096" aria-pressed="false">4096px</button>
+                        </div>
+                        <div class="form-text mb-0">大图较多时限制最长边，导出更快更省内存。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量导出弹窗 -->
+    <div class="modal fade" id="photostack-outline-export-modal" tabindex="-1" role="dialog" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量导出</h5>
+                </div>
+                <!-- 处理中 -->
+                <div class="modal-body" id="photostack-outline-export-progress">
+                    <p class="text-center">正在按导入顺序处理图片，请稍候……</p>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%" id="photostack-outline-export-progress-bar"></div>
+                    </div>
+                    <p class="text-muted text-center mt-2 mb-0" id="photostack-outline-export-progress-text"></p>
+                </div>
+                <!-- 完成 -->
+                <div class="modal-body d-none" id="photostack-outline-export-done">
+                    <p class="text-center mb-0"><i class="bi bi-check-circle-fill text-success" style="font-size: 2.6rem;"></i></p>
+                    <p class="text-center mt-3 mb-0">
+                        已按导入顺序打包 <span id="photostack-outline-export-done-count"></span> 张图片，
+                        ZIP 文件正在保存。<span id="photostack-outline-export-done-failed" class="text-danger"></span>
+                    </p>
+                </div>
+                <div class="modal-footer d-none" id="photostack-outline-export-done-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">完成</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import toast -->
+    <div class="toast-container position-fixed bottom-0 start-0 d-print-none">
+        <div id="photostack-outline-import-toast" class="toast m-2 m-md-4" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-body">
+                <div class="d-flex align-items-center">
+                    <strong>正在导入图片…</strong>
+                    <div class="spinner-border spinner-border-sm ms-auto" role="status" aria-hidden="true"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Error toast -->
+    <div class="toast-container position-fixed bottom-0 start-0 p-3 d-print-none">
+        <div id="photostack-outline-error-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">出错了 :(</strong>
+            </div>
+            <div class="toast-body">
+                出现错误，请稍等几秒后重试，或刷新页面。
+            </div>
+        </div>
+    </div>
+
+    <!-- 手机底部快捷操作栏 -->
+    <div id="photostack-bottom-bar" class="d-md-none d-print-none border-top" role="group" aria-label="快捷操作">
+        <button type="button" class="btn btn-primary" id="photostack-outline-bb-import-btn" aria-label="导入图片">
+            <i class="bi bi-folder-plus me-1"></i>导入
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="photostack-outline-bb-save-btn" disabled aria-label="保存当前图片">
+            <i class="bi bi-download me-1"></i>保存当前
+        </button>
+        <button type="button" class="btn btn-outline-success" id="photostack-outline-bb-export-btn" disabled aria-label="批量导出">
+            <i class="bi bi-collection me-1"></i>导出
+        </button>
+    </div>
+
+    <!-- File picker -->
+    <input type="file" id="photostack-outline-import-file" multiple accept="image/jpeg,image/png,image/gif,image/bmp">
+
+    <!-- Scripts -->
+    <script src="../js/FileSaver.min.js?v=20261010"></script>
+    <script src="../js/jszip.min.js?v=20261010"></script>
+    <script src="../js/pica.min.js?v=20261010"></script>
+    <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
+    <script src="../js/photostack-outline.js?v=20261010"></script>
+    <script src="../js/register-sw.js?v=20261010"></script>
+
+</body>
+
+</html>

@@ -25,22 +25,157 @@ body {
     top: 58px;
 }
 
+/* 预览图与翻页控制条一起吸附在顶部，往下滑动调参数时翻页按钮始终可见 */
+#photostack-preview-wrapper {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 58px;
+}
+
+/* 文件名过长时省略显示 */
+#photostack-paging-filename {
+    display: inline-block;
+    max-width: 55vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+/* 手机底部快捷操作栏：实色浅底 + 细分隔线，按钮小巧居中 */
+#photostack-bottom-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 5px 10px calc(5px + env(safe-area-inset-bottom, 0px));
+    background: var(--bs-body-secondary-bg);
+}
+
+#photostack-bottom-bar .btn {
+    font-size: 0.8125rem;
+    padding: 3px 14px;
+    border-radius: 50rem;
+    transition: transform 0.12s ease;
+}
+
+#photostack-bottom-bar .btn:active {
+    transform: scale(0.94);
+}
+
+/* 空状态图标（实色，不用透明度） */
+.photostack-empty-icon {
+    font-size: 3.2rem;
+    color: var(--bs-secondary-color);
+}
+
+/* 常用描边颜色色板：一键切换 */
+.photostack-swatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* 我的样式模板：点按即用 */
+.photostack-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.photostack-preset-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--bs-primary);
+    color: var(--bs-primary);
+    background: transparent;
+    border-radius: 50rem;
+    padding: 4px 10px 4px 14px;
+    font-size: 0.8125rem;
+    transition: transform 0.12s ease;
+}
+
+.photostack-preset-chip:active {
+    transform: scale(0.95);
+}
+
+.photostack-preset-del {
+    color: var(--bs-secondary-color);
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.photostack-preset-add {
+    border-style: dashed;
+    color: var(--bs-secondary-color);
+    border-color: var(--bs-border-color);
+    padding: 4px 14px;
+}
+
+.photostack-swatch {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--bs-border-color);
+    padding: 0;
+    transition: transform 0.12s ease;
+}
+
+.photostack-swatch:active {
+    transform: scale(0.9);
+}
+
+.photostack-swatch.active {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* 「更多设置」折叠（手机端收纳次要功能） */
+#photostack-more-toggle {
+    border-bottom: 0;
+    color: var(--bs-body-color);
+}
+
+.photostack-collapse-chevron {
+    transition: transform 0.2s ease;
+}
+
+#photostack-more-toggle[aria-expanded="true"] .photostack-collapse-chevron {
+    transform: rotate(180deg);
+}
+
+@media (min-width: 768px) {
+    /* 桌面端不受折叠影响，全部展开显示 */
+    #photostack-more-settings {
+        display: block !important;
+    }
+}
+
+/* 预览图柔和投影，更有照片卡片的感觉 */
+#photostack-editor-preview img {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
+}
+
 #photostack-original-container,
 #photostack-canvas-container,
 #photostack-import-file,
 #photostack-watermark-file-import,
 #photostack-import-zip,
 #photostack-watermark-import-image,
-#photostack-watermark-cache {
+#photostack-watermark-cache,
+#photostack-outline-import-file {
     display: none;
 }
 
 #photostack-watermark-editor-modal .modal-dialog {
     max-width: 900px;
-}
-
-ins.adsbygoogle[data-ad-status]+.photostack-ads-fallback {
-    display: none;
 }
 
 .toast-container.bottom-0 {
@@ -60,12 +195,13 @@ ins.adsbygoogle[data-ad-status]+.photostack-ads-fallback {
 
 @media (min-width: 768px) {
 
-    #photostack-editor-preview {
+    #photostack-preview-wrapper {
         min-height: calc(100vh - 58px);
     }
 
+    /* 预留控制条高度，保证预览图 + 控制条一起放进一屏 */
     #photostack-editor-preview img {
-        max-height: calc(100vh - 58px);
+        max-height: calc(100vh - 260px);
     }
 
 }
@@ -86,8 +222,18 @@ ins.adsbygoogle[data-ad-status]+.photostack-ads-fallback {
 
 @media (max-width: 767.98px) {
 
+    /* 给底部快捷操作栏留出空间，避免内容被遮挡 */
+    body {
+        padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* toast 上移，避免被底部快捷栏遮挡 */
+    .toast-container.bottom-0 {
+        bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
     #photostack-editor-preview img {
-        max-height: 60vh;
+        max-height: min(55vh, calc(100vh - 380px));
     }
 
 }
@@ -110,4 +256,110 @@ ins.adsbygoogle[data-ad-status]+.photostack-ads-fallback {
     height: auto;
     max-width: 100vw;
     max-height: 100vh;
+}
+
+/* ── 自动描边工具页（/outline/） ── */
+
+/* 预览区吸附在导航下方，往下滑动调设置时预览始终可见 */
+#photostack-outline-sticky {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 58px;
+    z-index: 1020;
+    background: var(--bs-body-bg);
+    padding: 8px 0 10px;
+}
+
+/* 预览画布：透明区域显示棋盘格，圆角和描边效果一目了然；左右拖动切换图片 */
+#photostack-outline-preview {
+    max-width: 100%;
+    max-height: min(42vh, calc(100vh - 380px));
+    border-radius: 0.25rem;
+    cursor: grab;
+    user-select: none;
+    background-image: conic-gradient(rgba(128, 128, 128, 0.22) 25%, transparent 0 50%, rgba(128, 128, 128, 0.22) 0 75%, transparent 0);
+    background-size: 16px 16px;
+}
+
+@media (min-width: 768px) {
+    #photostack-outline-preview {
+        max-height: calc(100vh - 320px);
+    }
+}
+
+/* 文件名过长时省略显示 */
+#photostack-outline-filename {
+    display: inline-block;
+    max-width: 55vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+/* 缩略图条：横向滚动，序号即导出顺序 */
+.photostack-thumb-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 6px 2px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.photostack-thumb {
+    position: relative;
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+    background: transparent;
+    transition: transform 0.12s ease;
+}
+
+.photostack-thumb:active {
+    transform: scale(0.93);
+}
+
+.photostack-thumb.active {
+    border-color: var(--bs-primary);
+}
+
+.photostack-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0.1875rem;
+    pointer-events: none;
+    user-select: none;
+}
+
+.photostack-thumb-num {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    min-width: 16px;
+    padding: 0 3px;
+    font-size: 0.6875rem;
+    line-height: 16px;
+    text-align: center;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 50rem;
+}
+
+.photostack-thumb-del {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 18px;
+    height: 18px;
+    font-size: 13px;
+    line-height: 16px;
+    text-align: center;
+    color: #fff;
+    background: var(--bs-secondary-color);
+    border-radius: 50%;
 }

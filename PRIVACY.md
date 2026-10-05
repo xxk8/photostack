@@ -14,10 +14,6 @@ PhotoStack uses analytics data to determine which device types and web browsers 
 
 The analytics data is stored in Plausible Analytics and is not shared or sold.
 
-## Contact information
-
-If you have any questions or concerns regarding this Privacy Policy, please submit a question or report an issue through the [GitHub issues page](https://github.com/corbindavenport/photostack/issues). You can also send an email to [corbindavenport at outlook.com](mailto:corbindavenport@outlook.com?subject=Snappy%20Privacy).
-
 ## Changes to the Privacy Policy
 
 This Privacy Policy may be updated from time to time. Any changes will be reflected on this page.

@@ -1,10 +1,27 @@
 const editorMode = document.getElementsByTagName('html')[0].dataset.photostackMode
 
 // Light and dark mode switching
+// 存储访问统一走安全包装：隐私模式等禁用 localStorage 的环境不能让主题切换崩掉
+function getStoredTheme() {
+    try {
+        return localStorage.getItem('theme')
+    } catch (e) {
+        return null
+    }
+}
+
+function setStoredTheme(value) {
+    try {
+        localStorage.setItem('theme', value)
+    } catch (e) {
+        // 存储不可用时主题仍可即时生效，只是不能记住选择
+    }
+}
+
 function applyTheme() {
-    if (localStorage.getItem('theme') === 'light') {
+    if (getStoredTheme() === 'light') {
         document.documentElement.setAttribute('data-bs-theme', 'light');
-    } else if (localStorage.getItem('theme') === 'dark') {
+    } else if (getStoredTheme() === 'dark') {
         document.documentElement.setAttribute('data-bs-theme', 'dark');
     } else {
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -19,7 +36,7 @@ function applyTheme() {
 window.addEventListener('load', function () {
     document.querySelectorAll('.photostack-theme-btn').forEach(function (el) {
         el.addEventListener('click', function () {
-            localStorage.setItem('theme', el.dataset.theme);
+            setStoredTheme(el.dataset.theme);
             applyTheme();
         })
     })
@@ -32,6 +49,23 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fun
 
 // Apply theme on initial page load
 applyTheme();
+
+// 画一个圆角矩形路径：优先使用原生 roundRect，旧浏览器回退到 arcTo
+function roundedRectPath(context, x, y, width, height, radius) {
+    // 限制半径不超过边长的一半，避免路径异常
+    radius = Math.max(0, Math.min(radius, width / 2, height / 2))
+    context.beginPath()
+    if (typeof context.roundRect === 'function') {
+        context.roundRect(x, y, width, height, radius)
+    } else {
+        context.moveTo(x + radius, y)
+        context.arcTo(x + width, y, x + width, y + height, radius)
+        context.arcTo(x + width, y + height, x, y + height, radius)
+        context.arcTo(x, y + height, x, y, radius)
+        context.arcTo(x, y, x + width, y, radius)
+        context.closePath()
+    }
+}
 
 // Apply settings to a canvas
 function applyCanvasSettings(canvas, watermarkObject = null, previewMode = false) {
@@ -70,34 +104,32 @@ function applyCanvasSettings(canvas, watermarkObject = null, previewMode = false
             // Do the resize
             canvas = await resizeCanvas(canvas, width, height)
         }
-        // Apply border
-        if ((editorMode === 'photo-editor') && (parseInt(document.getElementById('photostack-border-width').value) > 0)) {
-            var borderSize = document.getElementById('photostack-border-width').value
-            var borderColor = document.getElementById('photostack-border-color').value
-            // Top border
-            canvas.getContext("2d").beginPath()
-            canvas.getContext("2d").lineWidth = borderSize
-            canvas.getContext("2d").strokeStyle = borderColor
-            canvas.getContext("2d").rect(0, 0, canvas.width, borderSize)
-            canvas.getContext("2d").stroke()
-            // Bottom border
-            canvas.getContext("2d").beginPath()
-            canvas.getContext("2d").lineWidth = borderSize
-            canvas.getContext("2d").strokeStyle = borderColor
-            canvas.getContext("2d").rect(0, (canvas.height - borderSize), canvas.width, borderSize)
-            canvas.getContext("2d").stroke()
-            // Left border
-            canvas.getContext("2d").beginPath()
-            canvas.getContext("2d").lineWidth = borderSize
-            canvas.getContext("2d").strokeStyle = borderColor
-            canvas.getContext("2d").rect(0, 0, borderSize, canvas.height)
-            canvas.getContext("2d").stroke()
-            // Right border
-            canvas.getContext("2d").beginPath()
-            canvas.getContext("2d").lineWidth = borderSize
-            canvas.getContext("2d").strokeStyle = borderColor
-            canvas.getContext("2d").rect((canvas.width - borderSize), 0, borderSize, canvas.height)
-            canvas.getContext("2d").stroke()
+        // 应用描边与圆角
+        if (editorMode === 'photo-editor') {
+            var borderSize = parseInt(document.getElementById('photostack-border-width').value) || 0
+            var roundCorners = document.getElementById('photostack-corners-round').checked
+            var smoothness = parseInt(document.getElementById('photostack-corner-smoothness').value) || 0
+            if ((borderSize > 0) || roundCorners) {
+                // 圆角半径按图片短边的百分比计算，不同尺寸、不同宽高比的图片视觉上圆角一致
+                var cornerRadius = roundCorners ? (Math.min(canvas.width, canvas.height) * (smoothness / 100)) : 0
+                // 描边向外扩展：画布四周各加一圈描边宽度，图片本身不遮挡像素
+                var paddedCanvas = document.createElement('canvas')
+                paddedCanvas.width = canvas.width + (borderSize * 2)
+                paddedCanvas.height = canvas.height + (borderSize * 2)
+                var paddedContext = paddedCanvas.getContext('2d')
+                // 先填充描边底色；开启圆角时外圈半径 = 图片圆角 + 描边宽度，让描边贴合曲线
+                paddedContext.fillStyle = document.getElementById('photostack-border-color').value
+                var outerRadius = (cornerRadius > 0) ? (cornerRadius + borderSize) : 0
+                roundedRectPath(paddedContext, 0, 0, paddedCanvas.width, paddedCanvas.height, outerRadius)
+                paddedContext.fill()
+                // 再把图片以圆角裁剪的方式绘制到中间
+                paddedContext.save()
+                roundedRectPath(paddedContext, borderSize, borderSize, canvas.width, canvas.height, cornerRadius)
+                paddedContext.clip()
+                paddedContext.drawImage(canvas, borderSize, borderSize)
+                paddedContext.restore()
+                canvas = paddedCanvas
+            }
         }
         // Apply watermark
         if (watermarkObject) {

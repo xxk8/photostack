@@ -1,7 +1,7 @@
 {
-    "name": "PhotoStack",
-    "short_name": "PhotoStack",
-    "description": "Convert, resize, watermark, and crop images in a few clicks.",
+    "name": "批量描边工具",
+    "short_name": "批量描边",
+    "description": "批量给图片加描边和圆角，支持缩放、水印、裁剪。所有处理均在本地浏览器中完成，可离线使用。",
     "icons": [
         {
             "src": "img/icon_x192.png",
@@ -33,7 +33,7 @@
     "background_color": "#212529",
     "display": "standalone",
     "orientation": "any",
-    "lang": "en",
+    "lang": "zh-CN",
     "categories": ["design", "graphics", "graphics & design", "photo", "photo & video"],
-    "start_url": "/edit?utm_source=Installed%20App&utm_medium=Home%20Screen"
+    "start_url": "./edit/?utm_source=Installed%20App&utm_medium=Home%20Screen"
 }

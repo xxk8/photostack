@@ -1,34 +1,32 @@
 <!DOCTYPE html>
-<html lang="en" data-photostack-mode="watermark-editor">
+<html lang="zh-CN" data-photostack-mode="watermark-editor">
 
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>PhotoStack</title>
+    <title>水印管理</title>
     <meta name="robots" content="noindex">
-    <meta name="description" content="PhotoStack can convert, resize, watermark, and crop images in a few clicks.">
+    <meta name="description" content="批量给图片加描边和圆角，支持缩放、水印、裁剪。所有处理均在本地浏览器中完成，可离线使用。">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/css/photostack-styles.css">
-    <script src="/js/shared.js"></script>
+    <link href="../css/bootstrap.min.css?v=20261010" rel="stylesheet">
+    <link rel="stylesheet" href="../css/bootstrap-icons.css?v=20261010">
+    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261010">
+    <script src="../js/shared.js?v=20261010"></script>
     <!-- Icons and theme -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="24x24" href="/img/icon_x24.png">
-    <link rel="manifest" href="/site.webmanifest">
-    <link rel="shortcut icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="../img/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="24x24" href="../img/icon_x24.png">
+    <link rel="manifest" href="../site.webmanifest">
+    <link rel="shortcut icon" href="../favicon.ico">
     <meta name="theme-color" content="#6c757d">
     <!-- Open Graph card -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="PhotoStack" />
-    <meta property="og:description" content="Convert, resize, watermark, and crop images in a few clicks." />
-    <meta property="og:image" content="https://photostack.app/img/maskable_icon_x512.png" />
+    <meta property="og:title" content="批量描边工具" />
+    <meta property="og:description" content="批量给图片加描边和圆角，支持缩放、水印、裁剪。" />
+    <meta property="og:image" content="../img/maskable_icon_x512.png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
-    <meta name="og:image:alt" content="PhotoStack icon" />
+    <meta name="og:image:alt" content="应用图标" />
     <meta name="twitter:card" content="summary" />
-    <!-- Analytics -->
-    <script defer data-domain="photostack.app" src="https://plausible.io/js/plausible.js"></script>
 </head>
 
 <body style="padding-top: 56px;">
@@ -36,50 +34,56 @@
     <!-- Nav bar -->
     <nav class="navbar fixed-top bg-body-secondary navbar-expand-sm border-bottom">
         <div class="container-fluid">
-            <a class="navbar-brand d-sm-none" href="#">PhotoStack</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <a class="navbar-brand d-sm-none" href="#">批量描边工具</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="切换导航">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">
+                        <a class="nav-link" href="../">
                             <i class="bi bi-house-fill"></i>
-                            Home
+                            首页
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/edit/">
+                        <a class="nav-link" href="../edit/">
                             <i class="bi bi-images"></i>
-                            Editor
+                            编辑器
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link active" href="#" aria-current="page" href="#">
+                        <a class="nav-link" href="../outline/">
+                            <i class="bi bi-vector-pen"></i>
+                            自动描边
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">
                             <i class="bi bi-pencil"></i>
-                            Watermarks
+                            水印
                         </a>
                     </li>
                 </ul>
                 <form class="d-flex flex-column flex-sm-row">
                     <!-- Theme toggle -->
-                    <button class="btn btn-primary dropdown-toggle mt-2 mt-sm-0" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Toggle theme">
+                    <button class="btn btn-primary dropdown-toggle mt-2 mt-sm-0" role="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="切换外观">
                         <i class="bi bi-moon-stars-fill me-2 me-sm-0 me-md-2"></i>
-                        <span class="d-sm-none">Change theme</span>
+                        <span class="d-sm-none">外观</span>
                     </button>
                     <div class="dropdown">
                         <ul class="dropdown-menu dropdown-menu-end w-100 w-sm-auto">
                             <li><a class="dropdown-item photostack-theme-btn" data-theme="light" href="#">
                                     <i class="bi bi-brightness-high-fill me-2"></i>
-                                    Light mode
+                                    浅色模式
                                 </a></li>
                             <li><a class="dropdown-item photostack-theme-btn" data-theme="dark" href="#">
                                     <i class="bi bi-moon-fill me-2"></i>
-                                    Dark mode
+                                    深色模式
                                 </a></li>
                             <li><a class="dropdown-item photostack-theme-btn" data-theme="auto" href="#">
                                     <i class="bi bi-circle-half me-2"></i>
-                                    Auto theme
+                                    跟随系统
                                 </a></li>
                         </ul>
                     </div>
@@ -96,23 +100,22 @@
             <div class="col-6">
                 <button type="button" id="photostack-watermark-new-btn" class="btn btn-primary w-100">
                     <i class="bi bi-file-earmark-plus"></i>
-                    New watermark
+                    新建水印
                 </button>
             </div>
             <div class="col-6">
                 <button type="button" id="photostack-watermark-import-btn" class="btn btn-primary w-100">
                     <i class="bi bi-folder-plus"></i>
-                    Import watermark
+                    导入水印
                 </button>
             </div>
         </div>
         <div class="list-group mb-4" id="photostack-watermark-manager-list" role="tablist">
             <!-- This is populated by watermarks.js -->
         </div>
-        <h3>How to use watermarks</h3>
-        <p>PhotoStack allows you to create custom watermarks, which can then be added to your images from the watermarks settings in the main editor. Watermark data is saved locally in your browser's storage, and is not uploaded or shared.</p>
-        <p>You can backup or share watermarks by clicking Export, which saves them as a file to your device. You can then click Import on the Watermarks page on another device to add them to this list.</p>
-        <p><b>Missing some watermarks?</b> You may need to visit <a href="https://edit.photostack.app" target="_blank">open the previous version of PhotoStack</a> and export your old watermarks. After that, you can import them here.</p>
+        <h3>如何使用水印</h3>
+        <p>可以在这里创建自定义水印，然后在编辑器的「水印」设置中把水印添加到图片上。水印数据保存在浏览器的本地存储中，不会被上传或分享。</p>
+        <p>点击「导出」可以把水印保存为文件，用于备份或分享。在其他设备上打开本页面，点击「导入水印」即可把文件中的水印添加到列表里。</p>
     </div>
 
     <!-- Watermark editor modal -->
@@ -122,7 +125,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="photostack-watermark-editor-modal-title"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body" style="padding-left: 0; padding-right: 0">
                     <div class="container-fluid">
@@ -135,10 +138,10 @@
                             <div class="col-12 col-sm-6">
                                 <!-- Image import -->
                                 <div class="mb-3">
-                                    <button class="btn btn-primary w-100" type="button" id="photostack-watermark-editor-image-btn">Select image</button>
+                                    <button class="btn btn-primary w-100" type="button" id="photostack-watermark-editor-image-btn">选择图片</button>
                                 </div>
                                 <!-- Anchor position -->
-                                <div class="form-label mb-3">Anchor position</div>
+                                <div class="form-label mb-3">锚点位置</div>
                                 <div class="row mb-3">
                                     <div class="col-4">
                                         <button type="button" class="btn w-100 btn-secondary photostack-anchor-btn" id="photostack-watermark-pos-1">1</button>
@@ -173,19 +176,19 @@
                                     </div>
                                 </div>
                                 <!-- Effects -->
-                                <div class="form-label mb-3">Effects</div>
+                                <div class="form-label mb-3">效果</div>
                                 <div class="input-group mb-3">
-                                    <span class="input-group-text">Size</span>
-                                    <input type="number" class="form-control" min="0" max="100" aria-label="Size" id="photostack-watermark-size" value="30" autocomplete="off" enterkeyhint="done">
+                                    <span class="input-group-text">大小 (%)</span>
+                                    <input type="number" class="form-control" min="0" max="100" aria-label="大小" id="photostack-watermark-size" value="30" autocomplete="off" enterkeyhint="done">
                                 </div>
                                 <div class="input-group mb-3">
-                                    <span class="input-group-text">Opacity</span>
-                                    <input type="number" class="form-control" min="0" max="100" aria-label="Size" id="photostack-watermark-opacity" value="50" autocomplete="off" enterkeyhint="done">
+                                    <span class="input-group-text">不透明度 (%)</span>
+                                    <input type="number" class="form-control" min="0" max="100" aria-label="不透明度" id="photostack-watermark-opacity" value="50" autocomplete="off" enterkeyhint="done">
                                 </div>
                                 <div class="mb-3">
-                                    <label for="photostack-watermark-horizontal-inset" class="form-label">Horizontal inset</label>
+                                    <label for="photostack-watermark-horizontal-inset" class="form-label">水平边距</label>
                                     <input type="range" class="form-range" autocomplete="off" id="photostack-watermark-horizontal-inset" min="-10" max="10" value="0" enterkeyhint="done">
-                                    <label for="photostack-watermark-vertical-inset" class="form-label">Vertical inset</label>
+                                    <label for="photostack-watermark-vertical-inset" class="form-label">垂直边距</label>
                                     <input type="range" class="form-range" autocomplete="off" id="photostack-watermark-vertical-inset" min="-10" max="10" value="0" enterkeyhint="done">
                                 </div>
                             </div>
@@ -193,8 +196,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Discard changes</button>
-                    <button type="button" class="btn btn-primary" id="photostack-watermark-editor-save-btn">Save</button>
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">放弃更改</button>
+                    <button type="button" class="btn btn-primary" id="photostack-watermark-editor-save-btn">保存</button>
                 </div>
             </div>
         </div>
@@ -204,11 +207,11 @@
     <!-- File picker -->
     <input type="file" id="photostack-watermark-file-import" multiple accept=".json">
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/localforage@1.9.0/dist/localforage.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pica@7.0.0/dist/pica.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="/js/watermarks.js"></script>
+    <script src="../js/FileSaver.min.js?v=20261010"></script>
+    <script src="../js/localforage.min.js?v=20261010"></script>
+    <script src="../js/pica.min.js?v=20261010"></script>
+    <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
+    <script src="../js/watermarks.js?v=20261010"></script>
 
 </body>
 
