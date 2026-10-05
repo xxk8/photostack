@@ -478,7 +478,9 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted mb-2" id="photostack-export-result-summary" style="text-align: center;"></p>
-                    <div id="photostack-legacy-download">
+                    <!-- 批量导出图片（手机）：分批分享逐批存入相册，手机上的默认保存路径 -->
+                    <button type="button" id="photostack-export-album-button" class="btn w-100 btn-success d-none">批量导出图片（分批存入相册）</button>
+                    <div id="photostack-legacy-download" class="mt-3">
                         <button type="button" id="photostack-export-separate-button" class="btn w-100 btn-primary">
                             批量导出图片（逐张下载）
                             <br>
@@ -487,8 +489,6 @@
                     </div>
                     <button type="button" id="photostack-export-filesystem-api-button" class="btn w-100 btn-primary mt-3">保存到设备文件夹</button>
                     <button type="button" id="photostack-export-web-share-button" class="btn w-100 btn-primary mt-3">通过系统分享保存</button>
-                    <!-- 批量导出图片（手机）：分批分享逐批存入相册，保证每批都进相册 -->
-                    <button type="button" id="photostack-export-album-button" class="btn w-100 btn-success mt-3 d-none">批量导出图片（分批存入相册）</button>
                     <button type="button" id="photostack-export-zip-button" class="btn w-100 btn-primary mt-3">保存为 ZIP</button>
                 </div>
             </div>

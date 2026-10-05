@@ -614,6 +614,47 @@ async function saveCurrentImage() {
 
 // ── 批量导出 ZIP（严格串行：渲染一张打包一张，内存峰值恒定） ──
 
+// ── 批量导出（按设备分流） ──
+// 手机（支持文件分享）：主流程直接进相册——不打包 ZIP，按批生成、逐批点按存入；
+// 电脑：渲染全部并打包 ZIP 下载。
+
+// 渲染全部图片并打包为 ZIP；onProgress(i, total) 用于在进度条或按钮上显示进度
+async function renderAllToZip(onProgress) {
+    var zip = new JSZip()
+    var failed = 0
+    var countWhenStarted = outlineImages.length
+    for (var i = 0; i < countWhenStarted; i++) {
+        if (outlineImages.length !== countWhenStarted) {
+            break // 导入列表被改动（弹窗关闭后清空等），终止
+        }
+        if (onProgress) {
+            onProgress(i, countWhenStarted)
+        }
+        try {
+            var canvas = await renderFullCanvas(outlineImages[i])
+            var blob = await new Promise(function (resolve) {
+                canvas.toBlob(resolve, 'image/png')
+            })
+            // 尽早释放全尺寸画布
+            canvas.width = 0
+            canvas.height = 0
+            if (blob) {
+                // 文件名带序号前缀，保证解压后的排列顺序与导入顺序一致
+                var num = String(i + 1).padStart(3, '0')
+                zip.file(num + '-' + safeExportName(outlineImages[i].name) + '.png', blob)
+            } else {
+                failed++
+            }
+        } catch (error) {
+            console.error('Export failed for ' + outlineImages[i].name, error)
+            failed++
+        }
+    }
+    var today = new Date()
+    var date = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate()
+    return { zip: zip, failed: failed, fileName: '描边导出-' + date + '.zip' }
+}
+
 async function exportAllImages() {
     if (!outlineImages.length || isExporting) {
         return
@@ -625,55 +666,43 @@ async function exportAllImages() {
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
     exportModal.show()
-    var total = outlineImages.length
-    var zip = new JSZip()
-    var failed = 0
     var progressBar = document.getElementById('photostack-outline-export-progress-bar')
     var progressText = document.getElementById('photostack-outline-export-progress-text')
     try {
-        for (var i = 0; i < total; i++) {
-            var item = outlineImages[i]
-            progressText.innerText = '正在处理 ' + (i + 1) + ' / ' + total + ' · ' + item.name
-            try {
-                var canvas = await renderFullCanvas(item)
-                var blob = await new Promise(function (resolve) {
-                    canvas.toBlob(resolve, 'image/png')
-                })
-                if (blob) {
-                    // 文件名带序号前缀，保证解压后的排列顺序与导入顺序一致
-                    var num = String(i + 1).padStart(3, '0')
-                    zip.file(num + '-' + safeExportName(item.name) + '.png', blob)
-                } else {
-                    failed++
-                }
-                // 尽早释放全尺寸画布
-                canvas.width = 0
-                canvas.height = 0
-            } catch (error) {
-                console.error('Export failed for ' + item.name, error)
-                failed++
+        if (albumSupported()) {
+            // 手机：直接进相册。不打包 ZIP，第一批在后台生成好即交给用户逐批分享
+            albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: 'share' }
+            document.getElementById('photostack-outline-album-btn').classList.remove('d-none')
+            document.getElementById('photostack-outline-zip-btn').classList.remove('d-none')
+            progressText.innerText = '正在生成第 1 批图片…'
+            await renderAlbumChunk()
+            if (!albumJob) {
+                return // 弹窗被关闭
             }
-            var percent = Math.round(((i + 1) / total) * 100)
-            progressBar.setAttribute('aria-valuenow', percent)
-            progressBar.setAttribute('style', 'width: ' + percent + '%')
+            var albumFailedText = albumJob.skipped > 0 ? '，<span class="text-danger">' + albumJob.skipped + ' 张处理失败已跳过</span>' : ''
+            document.getElementById('photostack-outline-export-done-text').innerHTML =
+                '已按导入顺序生成 <strong>' + albumJob.total + '</strong> 张图片，点按下方按钮分批存入相册（分享面板选「存储图像」）' + albumFailedText + '。'
+        } else {
+            // 电脑：打包 ZIP 下载
+            var result = await renderAllToZip(function (i, total) {
+                progressText.innerText = '正在处理 ' + (i + 1) + ' / ' + total + ' · ' + outlineImages[i].name
+                var percent = Math.round(((i + 1) / total) * 100)
+                progressBar.setAttribute('aria-valuenow', percent)
+                progressBar.setAttribute('style', 'width: ' + percent + '%')
+            })
+            var zipData = await result.zip.generateAsync({ type: 'blob' })
+            saveAs(zipData, result.fileName)
+            var zipFailedText = result.failed > 0 ? '，<span class="text-danger">' + result.failed + ' 张处理失败已跳过</span>' : ''
+            document.getElementById('photostack-outline-export-done-text').innerHTML =
+                '已按导入顺序打包 <strong>' + (outlineImages.length - result.failed) + '</strong> 张图片，ZIP 文件正在保存' + zipFailedText + '。'
+            // 电脑上的补充选项：逐张下载
+            var albumButton = document.getElementById('photostack-outline-album-btn')
+            albumButton.classList.remove('d-none')
+            albumButton.innerText = '批量导出图片（逐张下载）'
         }
-        var today = new Date()
-        var date = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate()
-        var zipData = await zip.generateAsync({ type: 'blob' })
-        saveAs(zipData, '描边导出-' + date + '.zip')
-        document.getElementById('photostack-outline-export-done-count').innerText = String(total - failed)
-        document.getElementById('photostack-outline-export-done-failed').innerText = failed > 0 ? '（其中 ' + failed + ' 张处理失败已跳过）' : ''
         document.getElementById('photostack-outline-export-progress').classList.add('d-none')
         document.getElementById('photostack-outline-export-done').classList.remove('d-none')
         document.getElementById('photostack-outline-export-done-footer').classList.remove('d-none')
-        // 批量导出图片：手机分批分享存相册，电脑逐张下载
-        albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: albumSupported() ? 'share' : 'download' }
-        var albumButton = document.getElementById('photostack-outline-album-btn')
-        albumButton.classList.remove('d-none')
-        if (albumJob.mode === 'download') {
-            albumButton.innerText = '批量导出图片（逐张下载）'
-        }
-        updateAlbumButton()
     } catch (error) {
         console.error('Export error:', error)
         errorToast.show()
@@ -692,6 +721,10 @@ document.getElementById('photostack-outline-export-modal').addEventListener('hid
     albumButton.classList.add('d-none')
     albumButton.disabled = false
     albumButton.innerText = '批量导出图片'
+    var zipButton = document.getElementById('photostack-outline-zip-btn')
+    zipButton.classList.add('d-none')
+    zipButton.disabled = false
+    zipButton.innerText = '保存为 ZIP'
     document.getElementById('photostack-outline-export-progress').classList.remove('d-none')
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
@@ -876,6 +909,32 @@ async function onAlbumButtonClick() {
 }
 
 document.getElementById('photostack-outline-album-btn').addEventListener('click', onAlbumButtonClick)
+
+// ── 手机完成弹窗里的备选：按需打包 ZIP ──
+var zipGenerating = false
+
+document.getElementById('photostack-outline-zip-btn').addEventListener('click', async function () {
+    if (zipGenerating) {
+        return
+    }
+    zipGenerating = true
+    var btn = this
+    btn.disabled = true
+    try {
+        var result = await renderAllToZip(function (i, total) {
+            btn.innerText = '正在打包 ' + (i + 1) + ' / ' + total + '…'
+        })
+        var zipData = await result.zip.generateAsync({ type: 'blob' })
+        saveAs(zipData, result.fileName)
+        btn.innerText = 'ZIP 已保存 ✓' + (result.failed > 0 ? '（' + result.failed + ' 张失败）' : '')
+    } catch (error) {
+        console.error('Zip export error:', error)
+        errorToast.show()
+        btn.innerText = '保存为 ZIP'
+    }
+    btn.disabled = false
+    zipGenerating = false
+})
 
 // ── 设置偏好记忆 ──
 
@@ -1113,3 +1172,11 @@ document.body.addEventListener('drop', function (e) {
 initColorPalette('photostack-outline-color')
 restoreOutlinePrefs()
 initFormats()
+
+// 手机上导出主流程即分批存入相册，按钮文案说清楚（保留图标节点，只改文字）
+if (canShareFiles()) {
+    var mainExportBtn = document.getElementById('photostack-outline-export-btn')
+    if (mainExportBtn && mainExportBtn.lastChild) {
+        mainExportBtn.lastChild.textContent = '批量导出到相册'
+    }
+}

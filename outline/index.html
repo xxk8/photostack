@@ -219,15 +219,14 @@
                 <!-- 完成 -->
                 <div class="modal-body d-none" id="photostack-outline-export-done">
                     <p class="text-center mb-0"><i class="bi bi-check-circle-fill text-success" style="font-size: 2.6rem;"></i></p>
-                    <p class="text-center mt-3 mb-0">
-                        已按导入顺序打包 <span id="photostack-outline-export-done-count"></span> 张图片，
-                        ZIP 文件正在保存。<span id="photostack-outline-export-done-failed" class="text-danger"></span>
-                    </p>
+                    <p class="text-center mt-3 mb-0" id="photostack-outline-export-done-text"></p>
                 </div>
                 <div class="modal-footer d-none" id="photostack-outline-export-done-footer">
-                    <!-- 批量导出图片：手机分批分享存相册，电脑逐张下载，行为见 photostack-outline.js -->
-                    <button type="button" class="btn btn-outline-primary d-none" id="photostack-outline-album-btn">批量导出图片</button>
-                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">完成</button>
+                    <!-- 手机主流程：分批存入相册（主按钮）；电脑：逐张下载。行为见 photostack-outline.js -->
+                    <button type="button" class="btn btn-primary d-none" id="photostack-outline-album-btn">批量导出图片</button>
+                    <!-- 手机上的备选：主流程直接进相册，ZIP 按需生成 -->
+                    <button type="button" class="btn btn-outline-secondary d-none" id="photostack-outline-zip-btn">保存为 ZIP</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">完成</button>
                 </div>
             </div>
         </div>
@@ -288,7 +287,7 @@
     <script src="../js/jszip.min.js?v=20261010"></script>
     <script src="../js/pica.min.js?v=20261010"></script>
     <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
-    <script src="../js/photostack-outline.js?v=20261013"></script>
+    <script src="../js/photostack-outline.js?v=20261014"></script>
     <script src="../js/register-sw.js?v=20261010"></script>
 
 </body>
