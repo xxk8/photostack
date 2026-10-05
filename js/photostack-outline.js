@@ -666,6 +666,10 @@ async function exportAllImages() {
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
     exportModal.show()
+    // 每次导出先强制复位三个可选按钮，再按设备分支决定显示哪些，避免上一次的状态残留
+    ;['photostack-outline-album-btn', 'photostack-outline-quickdl-btn', 'photostack-outline-zip-btn'].forEach(function (id) {
+        document.getElementById(id).classList.add('d-none')
+    })
     var progressBar = document.getElementById('photostack-outline-export-progress-bar')
     var progressText = document.getElementById('photostack-outline-export-progress-text')
     try {
@@ -674,6 +678,10 @@ async function exportAllImages() {
             albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: 'share' }
             document.getElementById('photostack-outline-album-btn').classList.remove('d-none')
             document.getElementById('photostack-outline-zip-btn').classList.remove('d-none')
+            // 安卓上同时提供逐张下载通道：下载文件夹的图片多数安卓相册会自动显示，零分享面板
+            if (isAndroidDevice()) {
+                document.getElementById('photostack-outline-quickdl-btn').classList.remove('d-none')
+            }
             progressText.innerText = '正在生成第 1 批图片…'
             await renderAlbumChunk()
             if (!albumJob) {
@@ -681,7 +689,7 @@ async function exportAllImages() {
             }
             var albumFailedText = albumJob.skipped > 0 ? '，<span class="text-danger">' + albumJob.skipped + ' 张处理失败已跳过</span>' : ''
             document.getElementById('photostack-outline-export-done-text').innerHTML =
-                '已按导入顺序生成 <strong>' + albumJob.total + '</strong> 张图片，点按下方按钮分批存入相册（分享面板选「存储图像」）' + albumFailedText + '。'
+                '已按导入顺序生成 <strong>' + albumJob.total + '</strong> 张图片，点按下方按钮分批存入相册（' + albumSaveHint() + '）' + albumFailedText + '。'
         } else if (isMobileDevice()) {
             // 手机但不支持文件分享（如微信内置浏览器）：逐张下载图片——手机上没法方便解压 ZIP，ZIP 只留作备选按钮
             var mobileFailed = 0
@@ -739,6 +747,10 @@ document.getElementById('photostack-outline-export-modal').addEventListener('hid
     zipButton.classList.add('d-none')
     zipButton.disabled = false
     zipButton.innerText = '保存为 ZIP'
+    var quickDlButton = document.getElementById('photostack-outline-quickdl-btn')
+    quickDlButton.classList.add('d-none')
+    quickDlButton.disabled = false
+    quickDlButton.innerText = '逐张下载到设备'
     document.getElementById('photostack-outline-export-progress').classList.remove('d-none')
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
@@ -934,6 +946,26 @@ async function onAlbumButtonClick() {
 }
 
 document.getElementById('photostack-outline-album-btn').addEventListener('click', onAlbumButtonClick)
+
+// ── 安卓完成弹窗里的备选：逐张下载到设备 ──
+// 下载文件夹的图片多数安卓相册会自动显示，零分享面板；想确保进相册就用主按钮的分享流程
+var quickDlRunning = false
+
+document.getElementById('photostack-outline-quickdl-btn').addEventListener('click', async function () {
+    if (quickDlRunning) {
+        return
+    }
+    quickDlRunning = true
+    var btn = this
+    btn.disabled = true
+    var failed = await renderAndDownloadAll(function (i, total) {
+        btn.innerText = '正在下载 ' + (i + 1) + ' / ' + total + '…'
+    })
+    var failedText = failed > 0 ? '（' + failed + ' 张失败）' : ''
+    btn.innerText = '已下载 ' + (outlineImages.length - failed) + ' 张' + failedText + ' ✓'
+    btn.disabled = false
+    quickDlRunning = false
+})
 
 // ── 手机完成弹窗里的备选：按需打包 ZIP ──
 var zipGenerating = false

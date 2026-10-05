@@ -176,6 +176,19 @@ function isMobileDevice() {
     return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
 }
 
+// 存相册的提示按平台自适应：iOS 分享面板是「存储图像」，安卓是选「相册 / 图库」目标
+function albumSaveHint() {
+    if (/Android/i.test(navigator.userAgent)) {
+        return '在分享面板选择「相册 / 图库」'
+    }
+    return '在分享面板点「存储图像」'
+}
+
+// 是否安卓设备：安卓上下载文件夹的图片多数相册会自动显示，可提供逐张下载的备选通道
+function isAndroidDevice() {
+    return /Android/i.test(navigator.userAgent)
+}
+
 // 移动端判断：支持文件分享且带触摸屏（桌面 Chrome 可能声明支持 share，但场景不对）
 function canShareFiles() {
     try {
