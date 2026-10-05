@@ -892,7 +892,9 @@ document.getElementById('photostack-quick-export-btn').addEventListener('click',
     document.querySelector('.photostack-export-modal-loading').style.display = 'block'
     document.querySelector('.photostack-export-modal-finished').style.display = 'none'
     exportModal.show()
-    asyncExport(loadExportPrefs().method === 'zip' ? 'zip' : 'download')
+    // 手机上永不自动打包 ZIP（没法方便解压）：默认逐张下载，支持分享的环境停在完成界面分批存相册
+    var rememberZip = loadExportPrefs().method === 'zip' && !isMobileDevice()
+    asyncExport(rememberZip ? 'zip' : 'download')
 })
 
 // Reset export status when the close button is clicked

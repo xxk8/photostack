@@ -670,7 +670,7 @@ async function exportAllImages() {
     var progressText = document.getElementById('photostack-outline-export-progress-text')
     try {
         if (albumSupported()) {
-            // 手机：直接进相册。不打包 ZIP，第一批在后台生成好即交给用户逐批分享
+            // 手机（支持文件分享）：直接进相册。不打包 ZIP，第一批在后台生成好即交给用户逐批分享
             albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: 'share' }
             document.getElementById('photostack-outline-album-btn').classList.remove('d-none')
             document.getElementById('photostack-outline-zip-btn').classList.remove('d-none')
@@ -682,6 +682,20 @@ async function exportAllImages() {
             var albumFailedText = albumJob.skipped > 0 ? '，<span class="text-danger">' + albumJob.skipped + ' 张处理失败已跳过</span>' : ''
             document.getElementById('photostack-outline-export-done-text').innerHTML =
                 '已按导入顺序生成 <strong>' + albumJob.total + '</strong> 张图片，点按下方按钮分批存入相册（分享面板选「存储图像」）' + albumFailedText + '。'
+        } else if (isMobileDevice()) {
+            // 手机但不支持文件分享（如微信内置浏览器）：逐张下载图片——手机上没法方便解压 ZIP，ZIP 只留作备选按钮
+            var mobileFailed = 0
+            mobileFailed = await renderAndDownloadAll(function (i, total) {
+                progressText.innerText = '正在生成并下载 ' + (i + 1) + ' / ' + total + ' · ' + outlineImages[i].name
+                var percent = Math.round(((i + 1) / total) * 100)
+                progressBar.setAttribute('aria-valuenow', percent)
+                progressBar.setAttribute('style', 'width: ' + percent + '%')
+            })
+            var mobileFailedText = mobileFailed > 0 ? '，<span class="text-danger">' + mobileFailed + ' 张处理失败已跳过</span>' : ''
+            document.getElementById('photostack-outline-export-done-text').innerHTML =
+                '已按导入顺序逐张下载 <strong>' + (outlineImages.length - mobileFailed) + '</strong> 张图片' + mobileFailedText +
+                '。如未弹出保存，请检查浏览器的下载设置。'
+            document.getElementById('photostack-outline-zip-btn').classList.remove('d-none')
         } else {
             // 电脑：打包 ZIP 下载
             var result = await renderAllToZip(function (i, total) {
@@ -813,23 +827,19 @@ async function renderAlbumChunk() {
     updateAlbumButton()
 }
 
-// 电脑端批量导出：逐张渲染并串行下载，按钮上实时显示进度与最终张数
-async function downloadAllImages() {
-    if (albumDownloading || !albumJob) {
-        return
-    }
-    albumDownloading = true
-    var job = albumJob
-    var btn = document.getElementById('photostack-outline-album-btn')
-    btn.disabled = true
+// 逐张渲染并串行下载图片（ZIP 在手机上没法方便解压，手机兜底路径也是图片）。
+// onProgress(i, total) 显示进度；shouldAbort() 返回 true 时终止。
+// 返回失败张数。
+async function renderAndDownloadAll(onProgress, shouldAbort) {
     var total = outlineImages.length
     var failed = 0
     for (var i = 0; i < total; i++) {
-        if (albumJob !== job) {
-            albumDownloading = false
-            return // 弹窗已关闭，终止下载
+        if (shouldAbort && shouldAbort()) {
+            break
         }
-        btn.innerText = '正在导出 ' + (i + 1) + ' / ' + total + '…'
+        if (onProgress) {
+            onProgress(i, total)
+        }
         var blob = null
         try {
             var canvas = await renderFullCanvas(outlineImages[i])
@@ -839,7 +849,7 @@ async function downloadAllImages() {
             canvas.width = 0
             canvas.height = 0
         } catch (error) {
-            console.error('Album download failed for ' + outlineImages[i].name, error)
+            console.error('Download failed for ' + outlineImages[i].name, error)
         }
         if (blob) {
             var num = String(i + 1).padStart(3, '0')
@@ -847,9 +857,7 @@ async function downloadAllImages() {
                 lastModified: Date.now(),
                 type: 'image/png'
             }))
-            job.saved++
         } else {
-            job.skipped++
             failed++
         }
         // 间隔触发，避免浏览器把连续下载判定为骚扰行为而拦截
@@ -857,12 +865,29 @@ async function downloadAllImages() {
             setTimeout(resolve, 350)
         })
     }
+    return failed
+}
+
+// 电脑端批量导出：逐张渲染并串行下载，按钮上实时显示进度与最终张数
+async function downloadAllImages() {
+    if (albumDownloading || !albumJob) {
+        return
+    }
+    albumDownloading = true
+    var job = albumJob
+    var btn = document.getElementById('photostack-outline-album-btn')
+    btn.disabled = true
+    var failed = await renderAndDownloadAll(function (i, total) {
+        btn.innerText = '正在导出 ' + (i + 1) + ' / ' + total + '…'
+    }, function () {
+        return albumJob !== job // 弹窗已关闭，终止下载
+    })
     if (albumJob !== job) {
         albumDownloading = false
         return
     }
     var skippedText = failed > 0 ? '，' + failed + ' 张失败' : ''
-    btn.innerText = '已下载 ' + (total - failed) + ' 张' + skippedText + ' ✓'
+    btn.innerText = '已下载 ' + (outlineImages.length - failed) + ' 张' + skippedText + ' ✓'
     btn.disabled = false
     albumDownloading = false
 }

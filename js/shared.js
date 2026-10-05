@@ -171,11 +171,16 @@ function flattenCanvasBackground(canvas, background) {
     return flattened
 }
 
+// 触屏设备判断：导出方式分流用（手机上 ZIP 难以解压，默认路径必须是图片：相册或逐张下载）
+function isMobileDevice() {
+    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+}
+
 // 移动端判断：支持文件分享且带触摸屏（桌面 Chrome 可能声明支持 share，但场景不对）
 function canShareFiles() {
     try {
         var probe = new File(['x'], 'probe.png', { type: 'image/png' })
-        return !!(navigator.canShare && navigator.canShare({ files: [probe] }) && ('ontouchstart' in window || navigator.maxTouchPoints > 0))
+        return !!(navigator.canShare && navigator.canShare({ files: [probe] }) && isMobileDevice())
     } catch (e) {
         return false
     }
