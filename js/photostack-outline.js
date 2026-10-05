@@ -666,16 +666,19 @@ async function exportAllImages() {
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
     exportModal.show()
-    // 每次导出先强制复位三个可选按钮，再按设备分支决定显示哪些，避免上一次的状态残留
-    ;['photostack-outline-album-btn', 'photostack-outline-quickdl-btn', 'photostack-outline-zip-btn'].forEach(function (id) {
+    // 每次导出先强制复位所有可选按钮，再按设备分支决定显示哪些，避免上一次的状态残留
+    ;['photostack-outline-album-btn', 'photostack-outline-fsapi-btn', 'photostack-outline-quickdl-btn', 'photostack-outline-zip-btn'].forEach(function (id) {
         document.getElementById(id).classList.add('d-none')
     })
+    // File System Access API（安卓 Chrome 132+ / 桌面 Chrome）：一次授权选文件夹，全部图片直接写入
+    var fsaAvailable = ('showDirectoryPicker' in window)
+    var fsaHint = fsaAvailable ? '点「保存到手机文件夹」一次授权即可全部写入（建议选 Pictures 或 DCIM 文件夹，相册直接可见）。' : ''
     var progressBar = document.getElementById('photostack-outline-export-progress-bar')
     var progressText = document.getElementById('photostack-outline-export-progress-text')
     try {
         if (albumSupported()) {
             // 手机（支持文件分享）：直接进相册。不打包 ZIP，第一批在后台生成好即交给用户逐批分享
-            albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: 'share' }
+            albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: 'share', maxFiles: 6 }
             document.getElementById('photostack-outline-album-btn').classList.remove('d-none')
             document.getElementById('photostack-outline-zip-btn').classList.remove('d-none')
             // 安卓上同时提供逐张下载通道：下载文件夹的图片多数安卓相册会自动显示，零分享面板
@@ -689,7 +692,8 @@ async function exportAllImages() {
             }
             var albumFailedText = albumJob.skipped > 0 ? '，<span class="text-danger">' + albumJob.skipped + ' 张处理失败已跳过</span>' : ''
             document.getElementById('photostack-outline-export-done-text').innerHTML =
-                '已按导入顺序生成 <strong>' + albumJob.total + '</strong> 张图片，点按下方按钮分批存入相册（' + albumSaveHint() + '）' + albumFailedText + '。'
+                '已按导入顺序生成 <strong>' + albumJob.total + '</strong> 张图片，点按下方按钮分批存入相册（' + albumSaveHint() + '）' + albumFailedText + '。' +
+                (isAndroidDevice() ? '选「逐张下载」时图片在「下载」文件夹，相册里可以看到。' : '')
         } else if (isMobileDevice()) {
             // 手机但不支持文件分享（如微信内置浏览器）：逐张下载图片——手机上没法方便解压 ZIP，ZIP 只留作备选按钮
             var mobileFailed = 0
@@ -725,6 +729,13 @@ async function exportAllImages() {
         document.getElementById('photostack-outline-export-progress').classList.add('d-none')
         document.getElementById('photostack-outline-export-done').classList.remove('d-none')
         document.getElementById('photostack-outline-export-done-footer').classList.remove('d-none')
+        if (fsaHint) {
+            document.getElementById('photostack-outline-export-done-text').innerHTML += fsaHint
+        }
+        // 支持 File System Access API 的环境（安卓 Chrome 132+ / 桌面）追加"选一次文件夹全部写入"的通道
+        if (fsaAvailable) {
+            document.getElementById('photostack-outline-fsapi-btn').classList.remove('d-none')
+        }
     } catch (error) {
         console.error('Export error:', error)
         errorToast.show()
@@ -751,6 +762,10 @@ document.getElementById('photostack-outline-export-modal').addEventListener('hid
     quickDlButton.classList.add('d-none')
     quickDlButton.disabled = false
     quickDlButton.innerText = '逐张下载到设备'
+    var fsApiButton = document.getElementById('photostack-outline-fsapi-btn')
+    fsApiButton.classList.add('d-none')
+    fsApiButton.disabled = false
+    fsApiButton.innerText = '保存到手机文件夹'
     document.getElementById('photostack-outline-export-progress').classList.remove('d-none')
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
@@ -794,8 +809,9 @@ function updateAlbumButton() {
 }
 
 // 渲染下一批导出文件（随时可被弹窗关闭中断）
+// 每批上限可被降半：部分安卓机型分享多图会失败甚至崩溃（Chromium 已知问题），失败后自动减半重试
 async function renderAlbumChunk() {
-    var MAX_FILES = 6
+    var MAX_FILES = (albumJob && albumJob.maxFiles) || 6
     var MAX_BYTES = 60 * 1024 * 1024
     var chunk = []
     var bytes = 0
@@ -931,8 +947,10 @@ async function onAlbumButtonClick() {
                 return
             }
             console.error('Album share failed:', error)
+            // 部分安卓机型分享多图会失败甚至崩溃（Chromium 已知问题）：每批数量自动减半，点按重试即可
+            albumJob.maxFiles = Math.max(1, Math.floor((albumJob.maxFiles || 6) / 2))
             errorToast.show()
-            btn.innerText = '重试第 ' + albumJob.batchNo + ' 批'
+            btn.innerText = '已减半为每批 ' + albumJob.maxFiles + ' 张，重试第 ' + albumJob.batchNo + ' 批'
             return
         }
         albumJob.saved += albumJob.chunk.length
@@ -946,6 +964,63 @@ async function onAlbumButtonClick() {
 }
 
 document.getElementById('photostack-outline-album-btn').addEventListener('click', onAlbumButtonClick)
+
+// ── File System Access API：选一次文件夹，全部图片直接写入（安卓 Chrome 132+ / 桌面） ──
+// 写入 Pictures/DCIM 等目录的文件会被系统索引，直接出现在相册里；全程一次授权、零分享面板
+var fsApiRunning = false
+
+document.getElementById('photostack-outline-fsapi-btn').addEventListener('click', async function () {
+    if (fsApiRunning) {
+        return
+    }
+    var btn = this
+    var directory = null
+    try {
+        directory = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'pictures' })
+    } catch (error) {
+        return // 用户取消文件夹选择
+    }
+    fsApiRunning = true
+    btn.disabled = true
+    try {
+        var countWhenStarted = outlineImages.length
+        var failed = 0
+        for (var i = 0; i < countWhenStarted; i++) {
+            if (outlineImages.length !== countWhenStarted) {
+                break // 导入列表被改动，终止
+            }
+            btn.innerText = '正在写入 ' + (i + 1) + ' / ' + countWhenStarted + '…'
+            try {
+                var canvas = await renderFullCanvas(outlineImages[i])
+                var blob = await new Promise(function (resolve) {
+                    canvas.toBlob(resolve, 'image/png')
+                })
+                canvas.width = 0
+                canvas.height = 0
+                if (blob) {
+                    var num = String(i + 1).padStart(3, '0')
+                    var handle = await directory.getFileHandle(num + '-' + safeExportName(outlineImages[i].name) + '.png', { create: true })
+                    var writer = await handle.createWritable()
+                    await writer.write(blob)
+                    await writer.close()
+                } else {
+                    failed++
+                }
+            } catch (error) {
+                console.error('FSA write failed for ' + outlineImages[i].name, error)
+                failed++
+            }
+        }
+        var failedText = failed > 0 ? '（' + failed + ' 张失败）' : ''
+        btn.innerText = '已写入 ' + (countWhenStarted - failed) + ' 张' + failedText + ' ✓'
+    } catch (error) {
+        console.error('FSA export failed:', error)
+        errorToast.show()
+        btn.innerText = '保存到手机文件夹'
+    }
+    btn.disabled = false
+    fsApiRunning = false
+})
 
 // ── 安卓完成弹窗里的备选：逐张下载到设备 ──
 // 下载文件夹的图片多数安卓相册会自动显示，零分享面板；想确保进相册就用主按钮的分享流程

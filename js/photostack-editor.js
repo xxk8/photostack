@@ -801,8 +801,7 @@ async function asyncExport(autoSaveMethod) {
             if (canShareFiles()) {
                 var albumBtn = document.getElementById('photostack-export-album-button')
                 albumBtn.classList.remove('d-none')
-                var albumState = { next: 0, saved: 0, batchNo: 1, busy: false }
-                var ALBUM_MAX_FILES = 6
+                var albumState = { next: 0, saved: 0, batchNo: 1, busy: false, maxFiles: 6 }
                 var ALBUM_MAX_BYTES = 60 * 1024 * 1024
                 var updateAlbumBtn = function () {
                     if (albumState.next >= files.length) {
@@ -811,7 +810,7 @@ async function asyncExport(autoSaveMethod) {
                         albumBtn.disabled = true
                         return
                     }
-                    var chunkEnd = Math.min(albumState.next + ALBUM_MAX_FILES, files.length)
+                    var chunkEnd = Math.min(albumState.next + albumState.maxFiles, files.length)
                     albumBtn.innerText = '批量导出图片：第 ' + albumState.batchNo + ' 批（第 ' + (albumState.next + 1) + '-' + chunkEnd + ' 张，共 ' + files.length + ' 张）'
                 }
                 albumBtn.addEventListener('click', async function () {
@@ -821,7 +820,7 @@ async function asyncExport(autoSaveMethod) {
                     albumState.busy = true
                     var chunk = []
                     var bytes = 0
-                    while ((albumState.next < files.length) && (chunk.length < ALBUM_MAX_FILES) && (bytes < ALBUM_MAX_BYTES)) {
+                    while ((albumState.next < files.length) && (chunk.length < albumState.maxFiles) && (bytes < ALBUM_MAX_BYTES)) {
                         var nextFile = files[albumState.next]
                         chunk.push(nextFile)
                         bytes += nextFile.size
@@ -845,7 +844,9 @@ async function asyncExport(autoSaveMethod) {
                             return
                         }
                         console.error('Album share failed:', error)
-                        alert('调起分享面板失败，可改用「保存为 ZIP」。')
+                        // 部分安卓机型分享多图会失败甚至崩溃（Chromium 已知问题）：每批数量自动减半
+                        albumState.maxFiles = Math.max(1, Math.floor((albumState.maxFiles || 6) / 2))
+                        alert('分享失败：每批数量已减半为 ' + albumState.maxFiles + ' 张，请再点一次重试；也可改用「保存为 ZIP」。')
                         return
                     }
                     albumState.busy = false

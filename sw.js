@@ -1,7 +1,7 @@
 // This is the "Offline copy of pages" service worker（PWA Builder 模板 + 预缓存应用外壳）
 
 // 缓存名带版本号：更新 sw.js 后在 activate 阶段自动清理旧缓存
-const CACHE = "photostack-offline-v13";
+const CACHE = "photostack-offline-v15";
 
 // 首次安装即预缓存全部页面与静态资源，断网后整个站点直接可用。
 // 注意：列表中的 ?v= 缓存戳必须与页面引用保持一致；变更缓存戳时同步改这里。
@@ -31,8 +31,8 @@ const PRECACHE_URLS = [
     "js/localforage.min.js?v=20261010",
     "js/pica.min.js?v=20261010",
     "js/bootstrap.bundle.min.js?v=20261010",
-    "js/photostack-editor.js?v=20261015",
-    "js/photostack-outline.js?v=20261016",
+    "js/photostack-editor.js?v=20261017",
+    "js/photostack-outline.js?v=20261018",
     "js/watermarks.js?v=20261010",
     "js/register-sw.js?v=20261010",
     // 图标

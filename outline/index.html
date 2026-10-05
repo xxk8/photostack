@@ -224,6 +224,8 @@
                 <div class="modal-footer d-none" id="photostack-outline-export-done-footer">
                     <!-- 手机主流程：分批存入相册（主按钮）；电脑：逐张下载。行为见 photostack-outline.js -->
                     <button type="button" class="btn btn-primary d-none" id="photostack-outline-album-btn">批量导出图片</button>
+                    <!-- File System Access API（安卓 Chrome 132+ / 桌面）：一次授权选文件夹，全部图片直接写入 -->
+                    <button type="button" class="btn btn-success d-none" id="photostack-outline-fsapi-btn">保存到手机文件夹</button>
                     <!-- 安卓备选：逐张下载到设备，下载文件夹的图片多数安卓相册会自动显示 -->
                     <button type="button" class="btn btn-outline-secondary d-none" id="photostack-outline-quickdl-btn">逐张下载到设备</button>
                     <!-- 手机上的备选：主流程直接进相册，ZIP 按需生成 -->
@@ -289,7 +291,7 @@
     <script src="../js/jszip.min.js?v=20261010"></script>
     <script src="../js/pica.min.js?v=20261010"></script>
     <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
-    <script src="../js/photostack-outline.js?v=20261016"></script>
+    <script src="../js/photostack-outline.js?v=20261018"></script>
     <script src="../js/register-sw.js?v=20261010"></script>
 
 </body>
