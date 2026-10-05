@@ -67,6 +67,134 @@ function roundedRectPath(context, x, y, width, height, radius) {
     }
 }
 
+// 校验并规整十六进制颜色：非法输入回退到 fallback。
+// canvas fillStyle 遇到非法值会静默沿用旧颜色（初始为黑色），
+// 在不支持取色器的浏览器里 input 值可能为空，必须在这里兜底，否则描边会莫名变黑。
+function normalizeHexColor(value, fallback) {
+    var match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(String(value || '').trim())
+    if (!match) {
+        return fallback || '#FFFFFF'
+    }
+    var hex = match[1]
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+    }
+    return '#' + hex.toLowerCase()
+}
+
+// 内置色板弹层：取代系统取色器（微信内置浏览器等环境 input[type=color] 点不开）。
+// input 仍保留在页面里（type=hidden），id 与取值逻辑不变；
+// 色块按钮点击弹出扩展色板，选中后写回 input 并派发 input/change 事件联动预览。
+var PHOTOSTACK_PALETTE_COLORS = [
+    // 黑白灰
+    '#FFFFFF', '#F8F9FA', '#E9ECEF', '#DEE2E6', '#ADB5BD', '#6C757D', '#495057', '#343A40', '#212529', '#000000',
+    // 红橙
+    '#DC3545', '#C92A2A', '#FF6B6B', '#FFA8A8', '#FD7E14', '#F76707', '#FF922B', '#FFC078',
+    // 黄
+    '#FFC107', '#FAB005', '#FFD43B', '#FFE066',
+    // 绿
+    '#198754', '#2B8A3E', '#51CF66', '#B2F2BB', '#20C997', '#0CA678',
+    // 蓝青
+    '#0D6EFD', '#1864AB', '#4DABF7', '#74C0FC', '#15AABF', '#0B7285',
+    // 蓝紫粉
+    '#6F42C1', '#5F3DC4', '#9775FA', '#D0BFFF', '#D6336C', '#A61E4D', '#F783AC', '#FFC9DE'
+]
+
+// 更新某个色板按钮上显示的当前颜色
+function updateColorChip(inputId) {
+    var chip = document.querySelector('.photostack-color-chip[data-color-input="' + inputId + '"]')
+    if (chip) {
+        chip.style.backgroundColor = normalizeHexColor(document.getElementById(inputId).value)
+    }
+}
+
+function initColorPalette(inputId) {
+    var input = document.getElementById(inputId)
+    var chip = document.querySelector('.photostack-color-chip[data-color-input="' + inputId + '"]')
+    if (!input || !chip) {
+        return
+    }
+    updateColorChip(inputId)
+    // 任何途径改了颜色（快捷色板、模板、恢复偏好）都同步色块按钮
+    input.addEventListener('change', function () {
+        updateColorChip(inputId)
+    })
+
+    var backdrop = document.createElement('div')
+    backdrop.className = 'photostack-color-backdrop d-none'
+    var panel = document.createElement('div')
+    panel.className = 'photostack-color-panel d-none'
+    panel.setAttribute('role', 'dialog')
+    panel.setAttribute('aria-label', '选择颜色')
+    var grid = document.createElement('div')
+    grid.className = 'photostack-color-grid'
+    PHOTOSTACK_PALETTE_COLORS.forEach(function (color) {
+        var cell = document.createElement('button')
+        cell.type = 'button'
+        cell.className = 'photostack-color-cell'
+        cell.style.backgroundColor = color
+        cell.setAttribute('title', color.toUpperCase())
+        cell.setAttribute('aria-label', '颜色 ' + color.toUpperCase())
+        cell.addEventListener('click', function () {
+            input.value = color
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+            closePalette()
+        })
+        grid.appendChild(cell)
+    })
+    panel.appendChild(grid)
+    document.body.appendChild(backdrop)
+    document.body.appendChild(panel)
+
+    function openPalette() {
+        backdrop.classList.remove('d-none')
+        panel.classList.remove('d-none')
+    }
+    function closePalette() {
+        backdrop.classList.add('d-none')
+        panel.classList.add('d-none')
+    }
+    chip.addEventListener('click', openPalette)
+    backdrop.addEventListener('click', closePalette)
+}
+
+// JPEG 不支持透明：导出前垫一层背景色，避免圆角外侧等透明区域被编码成黑色
+function flattenCanvasBackground(canvas, background) {
+    var flattened = document.createElement('canvas')
+    flattened.width = canvas.width
+    flattened.height = canvas.height
+    var context = flattened.getContext('2d')
+    context.fillStyle = background || '#FFFFFF'
+    context.fillRect(0, 0, flattened.width, flattened.height)
+    context.drawImage(canvas, 0, 0)
+    return flattened
+}
+
+// 移动端判断：支持文件分享且带触摸屏（桌面 Chrome 可能声明支持 share，但场景不对）
+function canShareFiles() {
+    try {
+        var probe = new File(['x'], 'probe.png', { type: 'image/png' })
+        return !!(navigator.canShare && navigator.canShare({ files: [probe] }) && ('ontouchstart' in window || navigator.maxTouchPoints > 0))
+    } catch (e) {
+        return false
+    }
+}
+
+// 逐张串行下载：连环触发 saveAs 会被浏览器拦截（Chrome 多下载确认、iOS Safari 只存一张），
+// 每张之间稍作停顿，onProgress 用于在按钮上显示进度
+async function sequentialDownload(files, onProgress) {
+    for (var i = 0; i < files.length; i++) {
+        if (onProgress) {
+            onProgress(i, files.length)
+        }
+        saveAs(files[i])
+        await new Promise(function (resolve) {
+            setTimeout(resolve, 350)
+        })
+    }
+}
+
 // Apply settings to a canvas
 function applyCanvasSettings(canvas, watermarkObject = null, previewMode = false) {
     return new Promise(async function (resolve) {
@@ -118,7 +246,7 @@ function applyCanvasSettings(canvas, watermarkObject = null, previewMode = false
                 paddedCanvas.height = canvas.height + (borderSize * 2)
                 var paddedContext = paddedCanvas.getContext('2d')
                 // 先填充描边底色；开启圆角时外圈半径 = 图片圆角 + 描边宽度，让描边贴合曲线
-                paddedContext.fillStyle = document.getElementById('photostack-border-color').value
+                paddedContext.fillStyle = normalizeHexColor(document.getElementById('photostack-border-color').value)
                 var outerRadius = (cornerRadius > 0) ? (cornerRadius + borderSize) : 0
                 roundedRectPath(paddedContext, 0, 0, paddedCanvas.width, paddedCanvas.height, outerRadius)
                 paddedContext.fill()
@@ -205,9 +333,24 @@ function applyCanvasSettings(canvas, watermarkObject = null, previewMode = false
     })
 }
 
+// 画布面积安全上限：iOS Safari 等环境画布超限后 drawImage/toBlob 会静默失败（导出空白图），
+// 超过上限的图先用 pica 降采样到限内，保证导出一定成功。
+var MAX_CANVAS_PIXELS = 32 * 1024 * 1024
+
+async function capCanvasPixels(canvas) {
+    var pixels = canvas.width * canvas.height
+    if (pixels <= MAX_CANVAS_PIXELS) {
+        return canvas
+    }
+    var scale = Math.sqrt(MAX_CANVAS_PIXELS / pixels)
+    var width = Math.max(1, Math.round(canvas.width * scale))
+    var height = Math.max(1, Math.round(canvas.height * scale))
+    console.warn('Canvas ' + canvas.width + 'x' + canvas.height + ' exceeds safe area, downscaling to ' + width + 'x' + height)
+    return await resizeCanvas(canvas, width, height)
+}
+
 // Resize a canvas using Pica library
-function resizeCanvas(oldCanvas, width, height, globalAlpha = 1.0) {
-    return new Promise(function (resolve, reject) {
+function resizeCanvas(oldCanvas, width, height, globalAlpha = 1.0) {    return new Promise(function (resolve, reject) {
         // Create canvas with new size
         var newCanvas = document.createElement('canvas')
         newCanvas.width = width

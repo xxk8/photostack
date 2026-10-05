@@ -78,7 +78,8 @@ function getStrokePct() {
 }
 
 function getStrokeColor() {
-    return getColorInput().value
+    // 校验颜色合法性：取色器不可用的环境下 input 值可能为空，非法值会让 fillStyle 落到黑色
+    return normalizeHexColor(getColorInput().value)
 }
 
 // 圆角是否开启（平滑模式）
@@ -95,6 +96,11 @@ function getMaxEdge() {
 
 // ── 渲染核心 ──
 
+// 导出文件名：清理文件系统非法字符（ZIP 条目里的 / 会被当成文件夹，解压后数量看起来不对）
+function safeExportName(name) {
+    return String(name || '图片').replace(/[\\/:*?"<>|]/g, '_')
+}
+
 // 自动平滑度：圆角半径随长宽比收敛。越接近方形越圆润（8%），越细长越平直（最低 4%），
 // 避免细长截图被切得像胶囊。预览与导出走同一公式，所见即所得。
 function autoCornerRadius(canvas) {
@@ -105,10 +111,26 @@ function autoCornerRadius(canvas) {
     return Math.round(shortSide * percent / 100)
 }
 
+// 圆角平滑度：0 表示自动（按长宽比 4–8%），1–20 为手动百分比（按短边比例）
+function getSmoothnessPct() {
+    var slider = document.getElementById('photostack-outline-smoothness')
+    var value = parseInt(slider.value) || 0
+    return Math.min(20, Math.max(0, value))
+}
+
+// 最终圆角半径：手动值优先，0 走自动公式。调大手动手径可以盖住原图自带的圆角黑边
+function getCornerRadius(canvas) {
+    var manual = getSmoothnessPct()
+    if (manual > 0) {
+        return Math.round(Math.min(canvas.width, canvas.height) * manual / 100)
+    }
+    return autoCornerRadius(canvas)
+}
+
 // 给画布加描边和圆角：外扩式，画布四周各加一圈描边宽度，图片本身不遮挡像素
 function applyOutline(canvas) {
     var borderSize = Math.round(Math.min(canvas.width, canvas.height) * getStrokePct() / 100)
-    var cornerRadius = isRoundCorners() ? autoCornerRadius(canvas) : 0
+    var cornerRadius = isRoundCorners() ? getCornerRadius(canvas) : 0
     if ((borderSize <= 0) && (cornerRadius <= 0)) {
         return canvas
     }
@@ -184,6 +206,8 @@ async function renderFullCanvas(item) {
     canvas.width = img.naturalWidth
     canvas.height = img.naturalHeight
     canvas.getContext('2d').drawImage(img, 0, 0)
+    // 超出画布安全面积的图先降采样，避免 iOS 上静默导出空白图
+    canvas = await capCanvasPixels(canvas)
     canvas = await maybeCapLongEdge(canvas)
     return applyOutline(canvas)
 }
@@ -261,6 +285,7 @@ function saveFileKey(item) {
         getStrokePct(),
         getStrokeColor(),
         isRoundCorners() ? 'round' : 'square',
+        getSmoothnessPct(),
         getMaxEdge()
     ].join('|')
 }
@@ -617,7 +642,7 @@ async function exportAllImages() {
                 if (blob) {
                     // 文件名带序号前缀，保证解压后的排列顺序与导入顺序一致
                     var num = String(i + 1).padStart(3, '0')
-                    zip.file(num + '-' + item.name + '.png', blob)
+                    zip.file(num + '-' + safeExportName(item.name) + '.png', blob)
                 } else {
                     failed++
                 }
@@ -641,12 +666,14 @@ async function exportAllImages() {
         document.getElementById('photostack-outline-export-progress').classList.add('d-none')
         document.getElementById('photostack-outline-export-done').classList.remove('d-none')
         document.getElementById('photostack-outline-export-done-footer').classList.remove('d-none')
-        // 支持文件分享的移动设备上提供「存入相册」分批分享
-        if (albumSupported()) {
-            albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle' }
-            document.getElementById('photostack-outline-album-btn').classList.remove('d-none')
-            updateAlbumButton()
+        // 批量导出图片：手机分批分享存相册，电脑逐张下载
+        albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle', mode: albumSupported() ? 'share' : 'download' }
+        var albumButton = document.getElementById('photostack-outline-album-btn')
+        albumButton.classList.remove('d-none')
+        if (albumJob.mode === 'download') {
+            albumButton.innerText = '批量导出图片（逐张下载）'
         }
+        updateAlbumButton()
     } catch (error) {
         console.error('Export error:', error)
         errorToast.show()
@@ -660,10 +687,11 @@ async function exportAllImages() {
 // 关闭导出弹窗时重置进度界面
 document.getElementById('photostack-outline-export-modal').addEventListener('hidden.bs.modal', function () {
     albumJob = null
+    albumDownloading = false
     var albumButton = document.getElementById('photostack-outline-album-btn')
     albumButton.classList.add('d-none')
     albumButton.disabled = false
-    albumButton.innerText = '存入相册'
+    albumButton.innerText = '批量导出图片'
     document.getElementById('photostack-outline-export-progress').classList.remove('d-none')
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
@@ -673,21 +701,18 @@ document.getElementById('photostack-outline-export-modal').addEventListener('hid
     document.getElementById('photostack-outline-export-progress-text').innerText = ''
 })
 
-// ── 批量存入相册（导出完成弹窗里的分批分享） ──
-// ZIP 解压后无法直接进相册；iOS 分享面板选「存储图像」可整批入相册，
+// ── 批量导出图片（导出完成弹窗里） ──
+// 手机：ZIP 解压后无法直接进相册；iOS 分享面板选「存储图像」可整批入相册，
 // 但 navigator.share 每次都要用户手势、单次载荷太大也会失败，
 // 所以按「每批最多 6 张 / 60MB」分批：后台生成一批 → 用户点一下分享一批。
+// 电脑：逐张串行下载（连续触发 saveAs 会被浏览器拦截），按钮上显示进度与最终张数。
 
-var albumJob = null // { total, next, saved, skipped, batchNo, chunk, phase }
+var albumJob = null // { total, next, saved, skipped, batchNo, chunk, phase, mode }
+var albumDownloading = false
 
-// 仅在支持文件分享的移动设备上显示「存入相册」入口
+// 仅在支持文件分享的移动设备上走分享分支，其余设备逐张下载
 function albumSupported() {
-    var probe = new File(['x'], 'probe.png', { type: 'image/png' })
-    try {
-        return !!(navigator.canShare && navigator.canShare({ files: [probe] }) && ('ontouchstart' in window || navigator.maxTouchPoints > 0))
-    } catch (e) {
-        return false
-    }
+    return canShareFiles()
 }
 
 function updateAlbumButton() {
@@ -696,6 +721,9 @@ function updateAlbumButton() {
         return
     }
     btn.disabled = (albumJob.phase === 'rendering') || (albumJob.phase === 'done')
+    if (albumJob.mode === 'download') {
+        return // 逐张下载分支的文案由 downloadAllImages 自己维护
+    }
     if (albumJob.phase === 'rendering') {
         btn.innerText = albumJob.saved === 0 ? '正在生成图片…' : '正在生成下一批…'
     } else if (albumJob.phase === 'ready') {
@@ -727,7 +755,7 @@ async function renderAlbumChunk() {
             if (blob) {
                 // 文件名带序号前缀，与 ZIP 导出一致，便于识别顺序
                 var num = String(albumJob.next + 1).padStart(3, '0')
-                chunk.push(new File([blob], num + '-' + item.name + '.png', {
+                chunk.push(new File([blob], num + '-' + safeExportName(item.name) + '.png', {
                     lastModified: Date.now(),
                     type: 'image/png'
                 }))
@@ -752,8 +780,67 @@ async function renderAlbumChunk() {
     updateAlbumButton()
 }
 
+// 电脑端批量导出：逐张渲染并串行下载，按钮上实时显示进度与最终张数
+async function downloadAllImages() {
+    if (albumDownloading || !albumJob) {
+        return
+    }
+    albumDownloading = true
+    var job = albumJob
+    var btn = document.getElementById('photostack-outline-album-btn')
+    btn.disabled = true
+    var total = outlineImages.length
+    var failed = 0
+    for (var i = 0; i < total; i++) {
+        if (albumJob !== job) {
+            albumDownloading = false
+            return // 弹窗已关闭，终止下载
+        }
+        btn.innerText = '正在导出 ' + (i + 1) + ' / ' + total + '…'
+        var blob = null
+        try {
+            var canvas = await renderFullCanvas(outlineImages[i])
+            blob = await new Promise(function (resolve) {
+                canvas.toBlob(resolve, 'image/png')
+            })
+            canvas.width = 0
+            canvas.height = 0
+        } catch (error) {
+            console.error('Album download failed for ' + outlineImages[i].name, error)
+        }
+        if (blob) {
+            var num = String(i + 1).padStart(3, '0')
+            saveAs(new File([blob], num + '-' + safeExportName(outlineImages[i].name) + '.png', {
+                lastModified: Date.now(),
+                type: 'image/png'
+            }))
+            job.saved++
+        } else {
+            job.skipped++
+            failed++
+        }
+        // 间隔触发，避免浏览器把连续下载判定为骚扰行为而拦截
+        await new Promise(function (resolve) {
+            setTimeout(resolve, 350)
+        })
+    }
+    if (albumJob !== job) {
+        albumDownloading = false
+        return
+    }
+    var skippedText = failed > 0 ? '，' + failed + ' 张失败' : ''
+    btn.innerText = '已下载 ' + (total - failed) + ' 张' + skippedText + ' ✓'
+    btn.disabled = false
+    albumDownloading = false
+}
+
 async function onAlbumButtonClick() {
-    if (!albumJob || (albumJob.phase === 'rendering')) {
+    if (!albumJob || (albumJob.phase === 'rendering') || albumDownloading) {
+        return
+    }
+    // 电脑：逐张下载
+    if (albumJob.mode === 'download') {
+        await downloadAllImages()
         return
     }
     var btn = document.getElementById('photostack-outline-album-btn')
@@ -806,6 +893,7 @@ function saveOutlinePrefs() {
             width: getStrokePct(),
             color: getStrokeColor(),
             round: isRoundCorners(),
+            smoothness: getSmoothnessPct(),
             maxEdge: getMaxEdge()
         }))
     } catch (e) {
@@ -846,7 +934,14 @@ function restoreOutlinePrefs() {
     if ([0, 2048, 4096].includes(prefs.maxEdge)) {
         setSegmented(document.getElementById('photostack-outline-maxedge-group'), String(prefs.maxEdge))
     }
+    if (typeof prefs.smoothness === 'number' && prefs.smoothness >= 0 && prefs.smoothness <= 20) {
+        document.getElementById('photostack-outline-smoothness').value = String(prefs.smoothness)
+    }
+    updateSmoothnessBadge()
+    document.getElementById('photostack-outline-smoothness').disabled = !isRoundCorners()
     setActiveSwatch(colorInput.value)
+    // change 事件同步内置色板的色块按钮显示
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
 // ── 支持的导入格式 ──
@@ -899,6 +994,8 @@ document.getElementById('photostack-outline-swatches').addEventListener('click',
     }
     colorInput.value = btn.dataset.color
     setActiveSwatch(btn.dataset.color)
+    // change 事件同步内置色板的色块按钮显示
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }))
     saveOutlinePrefs()
     renderPreview()
 })
@@ -915,9 +1012,25 @@ document.getElementById('photostack-outline-corner-group').addEventListener('cli
         return
     }
     setSegmented(this, btn.dataset.corner)
+    outlineSmoothnessSlider.disabled = (btn.dataset.corner !== 'round')
     saveOutlinePrefs()
     renderPreview()
 })
+
+// 圆角平滑度：拖动实时预览，直角模式下置灰
+var outlineSmoothnessSlider = document.getElementById('photostack-outline-smoothness')
+var outlineSmoothnessBadge = document.getElementById('photostack-outline-smoothness-value')
+
+function updateSmoothnessBadge() {
+    var value = getSmoothnessPct()
+    outlineSmoothnessBadge.innerText = value > 0 ? (value + '%') : '自动'
+}
+
+outlineSmoothnessSlider.addEventListener('input', function () {
+    updateSmoothnessBadge()
+    schedulePreview()
+})
+outlineSmoothnessSlider.addEventListener('change', saveOutlinePrefs)
 document.getElementById('photostack-outline-maxedge-group').addEventListener('click', function (e) {
     var btn = e.target.closest('button')
     if (!btn) {
@@ -997,5 +1110,6 @@ document.body.addEventListener('drop', function (e) {
 
 // ── 初始化 ──
 
+initColorPalette('photostack-outline-color')
 restoreOutlinePrefs()
 initFormats()

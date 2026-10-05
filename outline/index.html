@@ -10,8 +10,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link href="../css/bootstrap.min.css?v=20261010" rel="stylesheet">
     <link rel="stylesheet" href="../css/bootstrap-icons.css?v=20261010">
-    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261010">
-    <script src="../js/shared.js?v=20261010"></script>
+    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261012">
+    <script src="../js/shared.js?v=20261013"></script>
     <!-- Icons and theme -->
     <link rel="apple-touch-icon" sizes="180x180" href="../img/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="24x24" href="../img/icon_x24.png">
@@ -165,7 +165,9 @@
                             <button type="button" class="photostack-swatch" data-color="#198754" style="background:#198754" aria-label="绿色"></button>
                             <button type="button" class="photostack-swatch" data-color="#0D6EFD" style="background:#0D6EFD" aria-label="蓝色"></button>
                         </div>
-                        <input type="color" class="form-control form-control-color" id="photostack-outline-color" value="#FFFFFF" title="自定义描边颜色" autocomplete="off">
+                        <!-- 内置色板：色块按钮弹出扩展色板，不依赖系统取色器 -->
+                        <input type="hidden" class="photostack-color-input" id="photostack-outline-color" value="#FFFFFF" autocomplete="off">
+                        <button type="button" class="photostack-color-chip" data-color-input="photostack-outline-color" title="更多颜色" aria-label="更多描边颜色"></button>
                     </div>
 
                     <!-- 圆角 -->
@@ -174,6 +176,11 @@
                         <button type="button" class="btn btn-outline-secondary" data-corner="square" aria-pressed="false">直角</button>
                         <button type="button" class="btn btn-outline-secondary active" data-corner="round" aria-pressed="true">平滑（自动）</button>
                     </div>
+
+                    <!-- 圆角平滑度：0=自动（按长宽比 4–8%），1–20% 手动；调大可盖住原图自带的圆角黑边 -->
+                    <label class="form-label mt-2 mb-1" for="photostack-outline-smoothness">圆角平滑度 <span class="badge bg-secondary ms-1" id="photostack-outline-smoothness-value">自动</span></label>
+                    <input type="range" class="form-range" id="photostack-outline-smoothness" min="0" max="20" step="1" value="0" autocomplete="off">
+                    <div class="form-text">0 为自动；调大圆角可以盖住原图自带的圆角黑边，最大 20%。</div>
 
                     <!-- 更多设置：手机端收纳低频选项，桌面端自动展开 -->
                     <button class="btn btn-link text-decoration-none p-0 mt-3 d-flex justify-content-between align-items-center w-100" type="button" id="photostack-more-toggle" data-bs-toggle="collapse" data-bs-target="#photostack-more-settings" aria-expanded="false" aria-controls="photostack-more-settings">
@@ -218,7 +225,8 @@
                     </p>
                 </div>
                 <div class="modal-footer d-none" id="photostack-outline-export-done-footer">
-                    <button type="button" class="btn btn-outline-primary d-none" id="photostack-outline-album-btn">存入相册</button>
+                    <!-- 批量导出图片：手机分批分享存相册，电脑逐张下载，行为见 photostack-outline.js -->
+                    <button type="button" class="btn btn-outline-primary d-none" id="photostack-outline-album-btn">批量导出图片</button>
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">完成</button>
                 </div>
             </div>
@@ -280,7 +288,7 @@
     <script src="../js/jszip.min.js?v=20261010"></script>
     <script src="../js/pica.min.js?v=20261010"></script>
     <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
-    <script src="../js/photostack-outline.js?v=20261005b"></script>
+    <script src="../js/photostack-outline.js?v=20261013"></script>
     <script src="../js/register-sw.js?v=20261010"></script>
 
 </body>

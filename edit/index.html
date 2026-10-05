@@ -10,8 +10,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link href="../css/bootstrap.min.css?v=20261010" rel="stylesheet">
     <link rel="stylesheet" href="../css/bootstrap-icons.css?v=20261010">
-    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261010">
-    <script src="../js/shared.js?v=20261010"></script>
+    <link rel="stylesheet" href="../css/photostack-styles.css?v=20261012">
+    <script src="../js/shared.js?v=20261013"></script>
     <!-- Icons and theme -->
     <link rel="apple-touch-icon" sizes="180x180" href="../img/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="24x24" href="../img/icon_x24.png">
@@ -131,11 +131,11 @@
                     <!-- 翻页与单张保存控制条 -->
                     <div id="photostack-paging-controls" class="d-none d-print-none mt-2 pb-3">
                         <div class="btn-group w-100" role="group" aria-label="图片翻页">
-                            <button type="button" class="btn btn-outline-secondary" id="photostack-prev-image-btn" disabled>
+                            <button type="button" class="btn btn-outline-secondary photostack-btn-solid" id="photostack-prev-image-btn" disabled>
                                 <i class="bi bi-chevron-left"></i>
                                 上一张
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" id="photostack-next-image-btn" disabled>
+                            <button type="button" class="btn btn-outline-secondary photostack-btn-solid" id="photostack-next-image-btn" disabled>
                                 下一张
                                 <i class="bi bi-chevron-right"></i>
                             </button>
@@ -151,10 +151,10 @@
                             <button type="button" class="btn btn-success" id="photostack-quick-export-btn" disabled>
                                 <i class="bi bi-lightning-charge-fill me-2"></i>一键导出
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" id="photostack-sort-images-btn" disabled>
+                            <button type="button" class="btn btn-outline-secondary photostack-btn-solid" id="photostack-sort-images-btn" disabled>
                                 <i class="bi bi-sort-down me-2"></i>排序
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" id="photostack-multi-select-btn" disabled>
+                            <button type="button" class="btn btn-outline-secondary photostack-btn-solid" id="photostack-multi-select-btn" disabled>
                                 <i class="bi bi-check2-square me-2"></i>多选
                             </button>
                         </div>
@@ -182,13 +182,17 @@
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="form-label mb-1">我的模板 <small class="text-muted">点按即应用到全部图片</small></label>
                             <div id="photostack-preset-row" class="photostack-preset-row"></div>
                         </div>
-                        <div class="input-group mb-2">
-                            <span class="input-group-text">描边粗细 (px)</span>
-                            <input type="number" class="form-control photostack-preview-update" id="photostack-border-width" autocomplete="off" min="0" placeholder="0" enterkeyhint="done">
-                            <input type="color" class="form-control form-control-color photostack-preview-update" id="photostack-border-color" autocomplete="off" value="#FFFFFF" title="描边颜色">
+                        <div class="mb-2">
+                            <label for="photostack-border-width" class="form-label mb-1">描边粗细 <span class="badge bg-secondary ms-1" id="photostack-border-width-value">0px</span></label>
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- 滑杆代替数字框：手机上拖动即调、实时预览，不用拉键盘 -->
+                                <input type="range" class="form-range photostack-preview-update" id="photostack-border-width" autocomplete="off" min="0" max="100" step="1" value="0">
+                                <!-- 内置色板：色块按钮弹出扩展色板，不依赖系统取色器 -->
+                                <input type="hidden" class="photostack-color-input photostack-preview-update" id="photostack-border-color" value="#FFFFFF" autocomplete="off">
+                                <button type="button" class="photostack-color-chip" data-color-input="photostack-border-color" title="更多颜色" aria-label="更多描边颜色"></button>
+                            </div>
                         </div>
                         <div class="photostack-swatch-row" role="group" aria-label="常用描边颜色">
                             <button type="button" class="photostack-swatch" data-color="#FFFFFF" style="background:#FFFFFF" aria-label="白色"></button>
@@ -416,10 +420,11 @@
                     <div class="mb-3">
                         <label for="photostack-file-format">文件格式</label>
                         <select class="form-select mt-1" id="photostack-file-format" autocomplete="on">
+                            <option value="image/png" selected>PNG (.png)</option>
                             <option value="image/jpeg">JPEG (.jpg)</option>
-                            <option value="image/png">PNG (.png)</option>
                             <option value="image/webp">WebP (.webp)</option>
                         </select>
+                        <small class="form-text text-warning d-none" id="photostack-jpeg-hint">JPEG 不支持透明：开启圆角时，圆角外侧将自动填充白色。需要保留透明背景请选 PNG。</small>
                         <small class="form-text text-muted">实际可用的格式因浏览器而异。</small>
                     </div>
                     <div class="mb-3">
@@ -472,15 +477,18 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
+                    <p class="text-muted mb-2" id="photostack-export-result-summary" style="text-align: center;"></p>
                     <div id="photostack-legacy-download">
                         <button type="button" id="photostack-export-separate-button" class="btn w-100 btn-primary">
-                            逐张下载保存
+                            批量导出图片（逐张下载）
                             <br>
                             （部分浏览器可能不支持）
                         </button>
                     </div>
                     <button type="button" id="photostack-export-filesystem-api-button" class="btn w-100 btn-primary mt-3">保存到设备文件夹</button>
                     <button type="button" id="photostack-export-web-share-button" class="btn w-100 btn-primary mt-3">通过系统分享保存</button>
+                    <!-- 批量导出图片（手机）：分批分享逐批存入相册，保证每批都进相册 -->
+                    <button type="button" id="photostack-export-album-button" class="btn w-100 btn-success mt-3 d-none">批量导出图片（分批存入相册）</button>
                     <button type="button" id="photostack-export-zip-button" class="btn w-100 btn-primary mt-3">保存为 ZIP</button>
                 </div>
             </div>
@@ -541,7 +549,7 @@
     <script src="../js/localforage.min.js?v=20261010"></script>
     <script src="../js/pica.min.js?v=20261010"></script>
     <script src="../js/bootstrap.bundle.min.js?v=20261010"></script>
-    <script src="../js/photostack-editor.js?v=20261010"></script>
+    <script src="../js/photostack-editor.js?v=20261013"></script>
     <script src="../js/register-sw.js?v=20261010"></script>
 </body>
 

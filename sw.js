@@ -1,7 +1,7 @@
 // This is the "Offline copy of pages" service worker（PWA Builder 模板 + 预缓存应用外壳）
 
 // 缓存名带版本号：更新 sw.js 后在 activate 阶段自动清理旧缓存
-const CACHE = "photostack-offline-v8";
+const CACHE = "photostack-offline-v10";
 
 // 首次安装即预缓存全部页面与静态资源，断网后整个站点直接可用。
 // 注意：列表中的 ?v= 缓存戳必须与页面引用保持一致；变更缓存戳时同步改这里。
@@ -21,18 +21,18 @@ const PRECACHE_URLS = [
     // 样式与字体
     "css/bootstrap.min.css?v=20261010",
     "css/bootstrap-icons.css?v=20261010",
-    "css/photostack-styles.css?v=20261010",
+    "css/photostack-styles.css?v=20261012",
     "css/fonts/bootstrap-icons.woff2?8bd4575acf83c7696dc7a14a966660a3",
     "css/fonts/bootstrap-icons.woff?8bd4575acf83c7696dc7a14a966660a3",
     // 脚本
-    "js/shared.js?v=20261010",
+    "js/shared.js?v=20261013",
     "js/FileSaver.min.js?v=20261010",
     "js/jszip.min.js?v=20261010",
     "js/localforage.min.js?v=20261010",
     "js/pica.min.js?v=20261010",
     "js/bootstrap.bundle.min.js?v=20261010",
-    "js/photostack-editor.js?v=20261010",
-    "js/photostack-outline.js?v=20261005b",
+    "js/photostack-editor.js?v=20261013",
+    "js/photostack-outline.js?v=20261013",
     "js/watermarks.js?v=20261010",
     "js/register-sw.js?v=20261010",
     // 图标

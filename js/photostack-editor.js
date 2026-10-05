@@ -184,6 +184,8 @@ function renderPreviewCanvas() {
         // Add canvas element to canvas container
         canvasContainer.appendChild(canvas)
         canvas.getContext('2d').drawImage(originalImage, 0, 0)
+        // 超出画布安全面积的图先降采样，避免 iOS 上预览静默失败
+        canvas = await capCanvasPixels(canvas)
         // Apply settings
         if (document.getElementById('photostack-watermark-select').value === 'no-watermark') {
             canvas = await applyCanvasSettings(canvas, null, true)
@@ -304,6 +306,8 @@ async function saveCurrentImage() {
         canvas.width = originalImage.naturalWidth
         canvas.height = originalImage.naturalHeight
         canvas.getContext('2d').drawImage(originalImage, 0, 0)
+        // 超出画布安全面积的图先降采样，避免 iOS 上静默失败
+        canvas = await capCanvasPixels(canvas)
         // 应用所有设置（不使用预览缩放）
         if (document.getElementById('photostack-watermark-select').value === 'no-watermark') {
             canvas = await applyCanvasSettings(canvas, null, false)
@@ -311,6 +315,10 @@ async function saveCurrentImage() {
             var watermarkName = document.getElementById('photostack-watermark-select').value
             var watermarkObject = await watermarksStore.getItem(watermarkName)
             canvas = await applyCanvasSettings(canvas, watermarkObject, false)
+        }
+        // JPEG 不支持透明：垫白底，避免圆角外侧的透明区域被编码成黑色
+        if (imgFormat === 'image/jpeg') {
+            canvas = flattenCanvasBackground(canvas, '#FFFFFF')
         }
         canvas.toBlob(function (blob) {
             if (!blob) {
@@ -348,36 +356,53 @@ async function saveCurrentImage() {
     }
 }
 
-// Convert a file to a data URL
-async function fileToDataURL(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            resolve(event.target.result);
-        };
-        reader.onerror = (error) => {
-            reject(error);
-        };
-        reader.readAsDataURL(file);
-    });
+// 按扩展名取 MIME：ZIP 条目解出来的是无类型 Blob，img 解码需要正确类型
+function imageMimeForExtension(ext) {
+    var map = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'bmp': 'image/bmp',
+        'webp': 'image/webp',
+        'avif': 'image/avif',
+        'jxl': 'image/jxl',
+        'heic': 'image/heic'
+    }
+    return map[(ext || '').toLowerCase()] || ''
+}
+
+// 释放图片占用的 ObjectURL（导入已从 dataURL 改为 ObjectURL：base64 字符串常驻内存且膨胀 1/3，
+// 几十张大图就能把手机浏览器压垮；ObjectURL 只是个指向文件的句柄）
+function releaseImageObjectUrl(imgEl) {
+    if (imgEl && imgEl.src && imgEl.src.startsWith('blob:')) {
+        URL.revokeObjectURL(imgEl.src)
+    }
 }
 
 // Load an image element and add it to the originals container if successful
-async function processImage(imgEl, dataUrl, fileName) {
+async function processImage(imgEl, src, fileName) {
     return new Promise((resolve) => {
         imgEl.onload = function () {
             console.log('Processed image:', fileName);
             document.getElementById('photostack-original-container').appendChild(imgEl)
             increaseImageCount(1);
-            resolve();
+            resolve(true);
         }
         imgEl.onerror = function () {
             console.log('Could not import this image: ' + fileName);
-            resolve()
+            releaseImageObjectUrl(imgEl)
+            resolve(false)
         }
         // Load the image to strigger the onload() or onerror()
-        imgEl.setAttribute('src', dataUrl);
+        imgEl.setAttribute('src', src);
     });
+}
+
+// 部分浏览器对 HEIC 等格式上报的 file.type 为空，按扩展名兜底，避免文件被静默忽略导致导入数量不对
+function isImageFileByExtension(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase()
+    return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif', 'jxl', 'heic'].includes(ext)
 }
 
 // Unified importer for local files (images and ZIPs)
@@ -389,6 +414,9 @@ async function importFiles(files, element = null) {
     // Show import toast, and hide drag and drop modal if needed
     dragModal.hide();
     importToast.show();
+    // 数量对账：完成时明确报出成功/跳过数量
+    var imported = 0;
+    var skipped = 0;
     // Process each file
     for (const file of files) {
         if (containerFileTypes.includes(file.type)) {
@@ -400,62 +428,56 @@ async function importFiles(files, element = null) {
                 const zippedFileName = zippedFile[1].name.match(/([^\\/]+)$/)?.[1]; // Example: image.png
                 const zippedFileExt = zippedFile[1].name.split('.').pop().toLowerCase(); // Example: png
                 const imgEl = document.createElement('img');
-                let dataUrl;
-                // Add each compatible file to originals container
+                // Exit early for directories or files in a __MACOSX directory
                 if (zippedFile[1].dir || zippedFile[1].name.includes('__MACOSX/')) {
-                    // Exit early for directories or files in a __MACOSX directory
-                    continue;
-                } else if (zippedFileExt === 'png') {
-                    // PNG image
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/png;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace('.png', ''));
-                } else if ((zippedFileExt === 'jpg') || (zippedFileExt === 'jpeg')) {
-                    // JPEG image
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/jpeg;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace('.jpeg', '').replace('.jpeg', ''));
-                } else if (zippedFileExt === 'bmp') {
-                    // BMP image
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/bmp;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace('.bmp', ''));
-                } else if (supportsWebP && zippedFileExt === 'webp') {
-                    // WebP image
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/webp;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace('.webp', ''));
-                } else if (supportsAVIF && (zippedFileExt === 'avif')) {
-                    // AVIF file
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/avif;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace('.avif', ''));
-                } else if (supportsJPEGXL && (zippedFileExt === 'jxl')) {
-                    // JPEG XL file
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/jxl;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace('.jxl', ''));
-                } else if (supportsHEIC && (zippedFileExt === 'heic')) {
-                    // HEIC image
-                    const imgData = await zippedFile[1].async('base64');
-                    dataUrl = 'data:image/heic;base64,' + imgData;
-                    imgEl.setAttribute('data-filename', zippedFileName.replace(/\.heic$/i, ''));
-                } else {
-                    // Unknown file type
                     continue;
                 }
+                const zippedMime = imageMimeForExtension(zippedFileExt);
+                const formatSupported = (zippedMime === 'image/webp') ? supportsWebP
+                    : (zippedMime === 'image/avif') ? supportsAVIF
+                    : (zippedMime === 'image/jxl') ? supportsJPEGXL
+                    : (zippedMime === 'image/heic') ? supportsHEIC
+                    : ['image/png', 'image/jpeg', 'image/gif', 'image/bmp'].includes(zippedMime);
+                if (!zippedMime || !formatSupported) {
+                    // Unknown file type
+                    skipped++;
+                    continue;
+                }
+                // ObjectURL 指向解压出的 Blob，不再转 base64
+                const zippedBlob = await zippedFile[1].async('blob');
+                const src = URL.createObjectURL(new Blob([zippedBlob], { type: zippedMime }));
+                imgEl.setAttribute('data-filename', zippedFileName.replace(/\.[^.]+$/, ''));
                 // Add image to originals container
-                await processImage(imgEl, dataUrl, zippedFileName);
+                const importedFromZip = await processImage(imgEl, src, zippedFileName);
+                if (importedFromZip) {
+                    imported++;
+                } else {
+                    skipped++;
+                }
             }
-        } else if (imageFileTypes.includes(file.type)) {
+        } else if (imageFileTypes.includes(file.type) || isImageFileByExtension(file)) {
             // This is an image file
             const imgEl = document.createElement('img');
             const imgFileName = file.name.replace(/\.[^/.]+$/, '');  // Example: image.png
-            // Process image
-            const dataUrl = await fileToDataURL(file);
+            // Process image（ObjectURL 直接指向原文件，省内存）
+            const src = URL.createObjectURL(file);
             imgEl.setAttribute('data-filename', imgFileName);
             // Add image to originals container
-            await processImage(imgEl, dataUrl, file.name);
+            const importedFile = await processImage(imgEl, src, file.name);
+            if (importedFile) {
+                imported++;
+            } else {
+                skipped++;
+            }
+        } else {
+            skipped++;
+        }
+    }
+    if (skipped > 0) {
+        if (imported > 0) {
+            alert('成功导入 ' + imported + ' 张图片；另有 ' + skipped + ' 个文件无法识别或解码，已跳过。')
+        } else {
+            alert('没有可以导入的图片文件（' + skipped + ' 个文件均无法识别或解码）。')
         }
     }
     // Generate preview if needed
@@ -475,8 +497,11 @@ function clearImportedImages() {
     if (!confirm('确定要清空所有已导入的图片吗？')) {
         return
     }
-    // Remove imported images
+    // Remove imported images（顺带释放 ObjectURL）
     var originalsContainer = document.getElementById('photostack-original-container')
+    originalsContainer.querySelectorAll('img').forEach(function (img) {
+        releaseImageObjectUrl(img)
+    })
     while (originalsContainer.firstChild) {
         originalsContainer.removeChild(originalsContainer.firstChild)
     }
@@ -568,7 +593,8 @@ function restoreExportPrefs() {
 }
 
 // Async export with Promises（autoSaveMethod='zip' 时为一键导出：渲染完自动打包下载）
-function asyncExport(autoSaveMethod) {
+// 串行渲染：一次只处理一张，画完即编码并释放画布，内存峰值恒定
+async function asyncExport(autoSaveMethod) {
     // Start timer
     console.time('Async export')
     saveExportPrefs()
@@ -578,91 +604,102 @@ function asyncExport(autoSaveMethod) {
     const imgUseOriginalNames = document.getElementById('photostack-file-keep-name').checked
     const imgNamePattern = document.getElementById('photostack-file-name-pattern').value || 'Image'
     const imgTotal = document.querySelectorAll('#photostack-original-container img').length
-    const imgStep = Math.round(100 / imgTotal)
     const progressBar = document.getElementById('photostack-export-modal-progress')
     // Switch modal content to progress indicator
     document.querySelector('.photostack-export-modal-initial').style.display = 'none'
     document.querySelector('.photostack-export-modal-loading').style.display = 'block'
     // Start rendering canvases
     var originals = document.querySelectorAll('#photostack-original-container img')
-    var canvasContainer = document.getElementById('photostack-canvas-container')
-    // Clear current canvas elements
-    while (canvasContainer.firstChild) {
-        canvasContainer.removeChild(canvasContainer.firstChild)
-    }
-    // Render canvas for each original image
     var originalsArray = Array.from(originals)
-    var canvasPromises = originalsArray.map(function (original) {
-        return new Promise(async function (resolve) {
-            // Create canvas element
+    // 水印全部图片共用同一个设置，循环外读取一次
+    var watermarkObject = null
+    if (document.getElementById('photostack-watermark-select').value !== 'no-watermark') {
+        var watermarkName = document.getElementById('photostack-watermark-select').value
+        watermarkObject = await new Promise(function (resolve) {
+            watermarksStore.getItem(watermarkName).then(resolve).catch(function () {
+                resolve(null)
+            })
+        })
+    }
+    // 串行渲染 + 编码：同一时刻只存在一张全尺寸画布，画完立刻编码并释放。
+    // 原实现把所有图片同时展开成全尺寸画布再统一编码，峰值内存约为全部图片之和，
+    // 手机上批量导出几十张大图会直接崩溃。
+    var files = []
+    var failedCount = 0
+    var downscaledCount = 0
+    var usedNames = {}
+    var savedIndex = 0
+    var fileEnding = (imgFormat === 'image/jpeg') ? '.jpg' : ((imgFormat === 'image/webp') ? '.webp' : '.png')
+    for (var i = 0; i < originalsArray.length; i++) {
+        var original = originalsArray[i]
+        const percent = Math.round(((i + 1) / imgTotal) * 100)
+        progressBar.setAttribute('aria-valuenow', percent)
+        progressBar.setAttribute('style', 'width: ' + percent + '%')
+        try {
             var canvas = document.createElement('canvas')
-            // Add canvas element to canvas container
-            canvasContainer.appendChild(canvas)
             canvas.width = original.naturalWidth
             canvas.height = original.naturalHeight
             canvas.getContext('2d').drawImage(original, 0, 0)
-            // Apply settings
-            if (document.getElementById('photostack-watermark-select').value === 'no-watermark') {
-                // No watermark selected
-                canvas = await applyCanvasSettings(canvas)
-            } else {
-                // Get selected watermark
-                var watermarkName = document.getElementById('photostack-watermark-select').value
-                var watermarkObject = await new Promise(function (resolve) {
-                    watermarksStore.getItem(watermarkName).then(function (value) {
-                        resolve(value)
-                    })
-                })
-                canvas = await applyCanvasSettings(canvas, watermarkObject)
+            // 超出画布安全面积的图先降采样，避免 iOS 上静默导出空白图
+            canvas = await capCanvasPixels(canvas)
+            if ((canvas.width * canvas.height) < (original.naturalWidth * original.naturalHeight)) {
+                downscaledCount++
             }
-            // Retain file name
-            canvas.dataset.filename = original.dataset.filename
-            // Update progress bar and page title
-            const previousProgress = parseInt(progressBar.getAttribute('aria-valuenow'))
-            const newProgress = previousProgress + imgStep
-            progressBar.setAttribute('aria-valuenow', newProgress)
-            progressBar.setAttribute('style', 'width: ' + newProgress + '%')
-            // Return rendered canvas
-            resolve(canvas)
-        })
-    })
-    // Continue once all canvases are rendered
-    Promise.all(canvasPromises).then(function (canvases) {
-        // Create promises for final render of each image
-        var promises = canvases.map(function (canvas) {
-            return new Promise(function (resolve) {
-                canvas.toBlob(function (blob) {
-                    resolve([blob, canvas.getAttribute('data-filename')])
-                }, imgFormat, imgQuality)
+            // Apply settings
+            canvas = await applyCanvasSettings(canvas, watermarkObject)
+            // JPEG 不支持透明：垫白底，避免圆角外侧的透明区域被编码成黑色
+            if (imgFormat === 'image/jpeg') {
+                canvas = flattenCanvasBackground(canvas, '#FFFFFF')
+            }
+            var blob = await new Promise(function (resolve) {
+                canvas.toBlob(resolve, imgFormat, imgQuality)
             })
-        })
-        // Show the final export screen when all renders are completed
-        Promise.all(promises).then(function (blobs) {
-            // Create final array of blobs with file names
-            var files = []
-            blobs.forEach(function (blob, i) {
-                // Set file ending
-                if (imgFormat === 'image/jpeg') {
-                    var fileEnding = '.jpg'
-                } else if (imgFormat === 'image/png') {
-                    var fileEnding = '.png'
-                } else if (imgFormat === 'image/webp') {
-                    var fileEnding = '.webp'
-                }
-                // Set file name
-                if (imgUseOriginalNames) {
-                    var fileName = blob[1] + fileEnding
-                } else {
-                    var num = i + 1
-                    var fileName = imgNamePattern + ' ' + num + fileEnding
-                }
-                // Add to files array
-                var file = new File([blob[0]], fileName, {
-                    lastModified: Date.now(),
-                    type: imgFormat
-                })
-                files.push(file)
-            })
+            // 尽早释放全尺寸画布
+            canvas.width = 0
+            canvas.height = 0
+            if (!blob) {
+                failedCount++
+                console.error('Export failed (blob is null) for #' + (i + 1) + ' ' + (original.dataset.filename || ''))
+                continue
+            }
+            // Set file name
+            var baseName
+            if (imgUseOriginalNames) {
+                baseName = original.dataset.filename || '图片'
+            } else {
+                // 成功的图片连续编号，失败的不占号
+                savedIndex++
+                baseName = imgNamePattern + ' ' + savedIndex
+            }
+            // 重名去重：ZIP/文件夹里同名文件会互相覆盖，导致导出数量变少
+            var fileName = baseName + fileEnding
+            var suffix = 2
+            while (usedNames[fileName.toLowerCase()]) {
+                fileName = baseName + ' (' + suffix + ')' + fileEnding
+                suffix++
+            }
+            usedNames[fileName.toLowerCase()] = true
+            files.push(new File([blob], fileName, {
+                lastModified: Date.now(),
+                type: imgFormat
+            }))
+        } catch (error) {
+            failedCount++
+            console.error('Export failed for #' + (i + 1) + ' ' + (original.dataset.filename || ''), error)
+        }
+    }
+    // 全部失败：退回导出设置界面
+    if (!files.length) {
+        errorToast.show()
+        document.querySelector('.photostack-export-modal-loading').style.display = 'none'
+        document.querySelector('.photostack-export-modal-initial').style.display = 'block'
+        return
+    }
+    // 完成界面显示实际成功/失败数量，导出数量可核对
+    document.getElementById('photostack-export-result-summary').innerText =
+        '共 ' + imgTotal + ' 张 · 成功 ' + files.length + ' 张' +
+        (failedCount ? ' · 失败 ' + failedCount + ' 张' : '') +
+        (downscaledCount ? ' · ' + downscaledCount + ' 张超大图已自动压缩' : '')
             // Show badge on PWA icon
             if ('setAppBadge' in navigator) {
                 navigator.setAppBadge()
@@ -671,20 +708,30 @@ function asyncExport(autoSaveMethod) {
                 if ('showDirectoryPicker' in window) {                // Add functionality for File System save button
                     document.getElementById('photostack-export-filesystem-api-button').addEventListener('click', async function () {
                         rememberExportMethod('dir')
-                    // Ask for export directory
-                    var directory = await window.showDirectoryPicker({
-                        mode: 'readwrite',
-                        startIn: 'pictures'
-                    })
+                    // Ask for export directory（用户取消会抛 AbortError，忽略即可）
+                    var directory
+                    try {
+                        directory = await window.showDirectoryPicker({
+                            mode: 'readwrite',
+                            startIn: 'pictures'
+                        })
+                    } catch (error) {
+                        return
+                    }
                     if (directory) {
                         // Save each file
                         console.log('Saving files in ' + directory.name + ' directory...')
-                        files.forEach(async function (file) {
-                            var writeableFile = await directory.getFileHandle(file.name, { create: true })
-                            var writer = await writeableFile.createWritable()
-                            await writer.write(file)
-                            await writer.close()
-                        })
+                        // 串行写入：并发写同一目录容易失败，单张出错不影响其余文件
+                        for (const file of files) {
+                            try {
+                                var writeableFile = await directory.getFileHandle(file.name, { create: true })
+                                var writer = await writeableFile.createWritable()
+                                await writer.write(file)
+                                await writer.close()
+                            } catch (error) {
+                                console.error('Failed to save ' + file.name, error)
+                            }
+                        }
                     }
                 })
                 // Hide legacy download method
@@ -703,7 +750,12 @@ function asyncExport(autoSaveMethod) {
                             console.log('Share successful.')
                         })
                         .catch(function (e) {
+                            if (e && e.name === 'AbortError') {
+                                return // 用户在分享面板点了取消
+                            }
                             console.error(e)
+                            // 一次分享全部文件在 iOS 上常因载荷过大失败，提示改用其他方式
+                            alert('系统分享失败，可改用「批量导出图片」分批存入相册，或「保存为 ZIP」。')
                         })
                 })
             } else {
@@ -713,8 +765,14 @@ function asyncExport(autoSaveMethod) {
             // Download files separately
             document.getElementById('photostack-export-separate-button').addEventListener('click', function () {
                 rememberExportMethod('download')
-                files.forEach(function (file) {
-                    saveAs(file)
+                // 逐张串行下载：连环触发 saveAs 会被浏览器拦截，实际保存数量会少于导出数量
+                var button = this
+                button.disabled = true
+                sequentialDownload(files, function (i, total) {
+                    button.innerText = '正在下载 ' + (i + 1) + ' / ' + total + '…'
+                }).then(function () {
+                    button.disabled = false
+                    button.innerHTML = '批量导出图片（逐张下载）<br>（部分浏览器可能不支持）'
                 })
             })
             // Download as ZIP
@@ -737,11 +795,72 @@ function asyncExport(autoSaveMethod) {
                     document.getElementById('photostack-export-zip-button').innerText = '保存为 ZIP'
                 })
             })
+            // 批量导出图片（手机）：把已生成的文件按「每批最多 6 张 / 60MB」分批分享，
+            // iOS 分享面板选「存储图像」即可逐批存入相册。每次点击只分享一批：
+            // navigator.share 必须在用户手势内调用，且单次载荷太大也会失败。
+            if (canShareFiles()) {
+                var albumBtn = document.getElementById('photostack-export-album-button')
+                albumBtn.classList.remove('d-none')
+                var albumState = { next: 0, saved: 0, batchNo: 1, busy: false }
+                var ALBUM_MAX_FILES = 6
+                var ALBUM_MAX_BYTES = 60 * 1024 * 1024
+                var updateAlbumBtn = function () {
+                    if (albumState.next >= files.length) {
+                        var failedNote = failedCount > 0 ? '，另有 ' + failedCount + ' 张导出失败' : ''
+                        albumBtn.innerText = '已存入相册 ' + albumState.saved + ' 张' + failedNote + ' ✓'
+                        albumBtn.disabled = true
+                        return
+                    }
+                    var chunkEnd = Math.min(albumState.next + ALBUM_MAX_FILES, files.length)
+                    albumBtn.innerText = '批量导出图片：第 ' + albumState.batchNo + ' 批（第 ' + (albumState.next + 1) + '-' + chunkEnd + ' 张，共 ' + files.length + ' 张）'
+                }
+                albumBtn.addEventListener('click', async function () {
+                    if (albumState.busy) {
+                        return
+                    }
+                    albumState.busy = true
+                    var chunk = []
+                    var bytes = 0
+                    while ((albumState.next < files.length) && (chunk.length < ALBUM_MAX_FILES) && (bytes < ALBUM_MAX_BYTES)) {
+                        var nextFile = files[albumState.next]
+                        chunk.push(nextFile)
+                        bytes += nextFile.size
+                        albumState.next++
+                    }
+                    if (!chunk.length) {
+                        albumState.busy = false
+                        updateAlbumBtn()
+                        return
+                    }
+                    try {
+                        await navigator.share({ files: chunk })
+                        albumState.saved += chunk.length
+                        albumState.batchNo++
+                    } catch (error) {
+                        // 用户取消或分享失败：回退本批进度，可再次点击重试
+                        albumState.next -= chunk.length
+                        albumState.busy = false
+                        updateAlbumBtn()
+                        if (error && error.name === 'AbortError') {
+                            return
+                        }
+                        console.error('Album share failed:', error)
+                        alert('调起分享面板失败，可改用「保存为 ZIP」。')
+                        return
+                    }
+                    albumState.busy = false
+                    updateAlbumBtn()
+                })
+                updateAlbumBtn()
+            }
             // 一键导出：按记住的方式自动保存。逐张下载时图片落在「下载」文件夹，相册应用会自动显示
             if (autoSaveMethod === 'download') {
-                files.forEach(function (file) {
-                    saveAs(file)
-                })
+                if (canShareFiles()) {
+                    // 手机：自动连环下载在 iOS 上会被拦到只剩一张，且分享面板必须在用户手势内调起，
+                    // 因此停在完成界面，由用户点「批量导出图片（分批存入相册）」逐批保存
+                } else {
+                    sequentialDownload(files)
+                }
             } else if (autoSaveMethod === 'zip') {
                 var quickZip = new JSZip()
                 files.forEach(function (file) {
@@ -758,8 +877,6 @@ function asyncExport(autoSaveMethod) {
             // Switch modal content to finished result
             document.querySelector('.photostack-export-modal-loading').style.display = 'none'
             document.querySelector('.photostack-export-modal-finished').style.display = 'block'
-        })
-    })
 }
 
 // Export button in modal
@@ -785,12 +902,14 @@ document.getElementById('photostack-export-modal').addEventListener('hidden.bs.m
     document.getElementById('photostack-export-separate-button').replaceWith(document.getElementById('photostack-export-separate-button').cloneNode(true))
     document.getElementById('photostack-export-filesystem-api-button').replaceWith(document.getElementById('photostack-export-filesystem-api-button').cloneNode(true))
     document.getElementById('photostack-export-zip-button').replaceWith(document.getElementById('photostack-export-zip-button').cloneNode(true))
+    document.getElementById('photostack-export-album-button').replaceWith(document.getElementById('photostack-export-album-button').cloneNode(true))
     // Clear content
     document.querySelector('.photostack-export-modal-loading').style.display = 'none'
     document.querySelector('.photostack-export-modal-finished').style.display = 'none'
     document.querySelector('.photostack-export-modal-initial').style.display = 'block'
     document.getElementById('photostack-export-modal-progress').setAttribute('aria-valuenow', '0')
     document.getElementById('photostack-export-modal-progress').setAttribute('style', 'width: 0%')
+    document.getElementById('photostack-export-result-summary').innerText = ''
     // Clear PWA icon
     if ('setAppBadge' in navigator) {
         navigator.clearAppBadge()
@@ -802,6 +921,14 @@ updateSupportedFormats();
 
 // 恢复上次使用的导出设置
 restoreExportPrefs();
+
+// 文件格式提示：JPEG 不支持透明，圆角外侧导出时自动垫白底（PNG 保留透明）
+var fileFormatSelect = document.getElementById('photostack-file-format')
+function updateJpegHint() {
+    document.getElementById('photostack-jpeg-hint').classList.toggle('d-none', fileFormatSelect.value !== 'image/jpeg')
+}
+fileFormatSelect.addEventListener('change', updateJpegHint)
+updateJpegHint()
 
 // Add warning for Safari users
 const ifSafari = (navigator.userAgent.includes('Safari') && (!navigator.userAgent.includes('Chrome')))
@@ -883,6 +1010,21 @@ smoothnessSlider.addEventListener('input', function () {
 smoothnessSlider.disabled = !cornersRoundCheckbox.checked
 cornersRoundCheckbox.addEventListener('change', function () {
     smoothnessSlider.disabled = !cornersRoundCheckbox.checked
+})
+
+// 描边粗细滑杆：拖动实时显示 px + 节流刷新预览（原来数字框要拉键盘，且失焦才刷新）
+var borderWidthSlider = document.getElementById('photostack-border-width')
+var borderWidthBadge = document.getElementById('photostack-border-width-value')
+var borderWidthPreviewTimer = null
+borderWidthSlider.addEventListener('input', function () {
+    borderWidthBadge.innerText = this.value + 'px'
+    if (borderWidthPreviewTimer) {
+        return
+    }
+    borderWidthPreviewTimer = setTimeout(function () {
+        borderWidthPreviewTimer = null
+        renderPreviewCanvas()
+    }, 120)
 })
 
 // 平滑度滑杆：拖动过程实时刷新预览（120ms 节流，配合渲染代数防止旧图覆盖新图）
@@ -998,6 +1140,7 @@ document.getElementById('photostack-delete-selected-btn').addEventListener('clic
         return
     }
     selectedSet.forEach(function (el) {
+        releaseImageObjectUrl(el)
         el.remove()
     })
     selectedSet.clear()
@@ -1046,6 +1189,8 @@ function syncSelectionAfterNav() {
 
 // 常用描边颜色色板：一键切换并实时预览
 var borderColorInput = document.getElementById('photostack-border-color')
+// 内置色板弹层（更多颜色）：不依赖系统取色器，微信内置浏览器等环境也能选色
+initColorPalette('photostack-border-color')
 function setActiveSwatch(color) {
     document.querySelectorAll('.photostack-swatch').forEach(function (btn) {
         btn.classList.toggle('active', btn.dataset.color.toLowerCase() === String(color).toLowerCase())
@@ -1087,8 +1232,11 @@ function savePresets(list) {
 }
 
 function applyPreset(preset) {
-    document.getElementById('photostack-border-width').value = preset.width
-    borderColorInput.value = preset.color
+    var widthSlider = document.getElementById('photostack-border-width')
+    widthSlider.value = preset.width
+    // input 事件同步 px 徽标并节流刷新预览
+    widthSlider.dispatchEvent(new Event('input', { bubbles: true }))
+    borderColorInput.value = normalizeHexColor(preset.color)
     var roundCheckbox = document.getElementById('photostack-corners-round')
     roundCheckbox.checked = !!preset.round
     roundCheckbox.dispatchEvent(new Event('change', { bubbles: true }))
@@ -1096,7 +1244,10 @@ function applyPreset(preset) {
     smoothnessSlider.value = preset.smoothness
     smoothnessSlider.dispatchEvent(new Event('input', { bubbles: true }))
     setActiveSwatch(preset.color)
-    renderPreviewCanvas()
+    // change 事件联动预览与内置色板的色块显示，无需再手动刷新
+    borderColorInput.dispatchEvent(new Event('change', { bubbles: true }))
+    // 模板应用的设置同样写入偏好记忆
+    saveStrokePrefs()
 }
 
 function renderPresets() {
@@ -1109,8 +1260,14 @@ function renderPresets() {
     if (!presets.length) {
         var emptyHint = document.createElement('span')
         emptyHint.className = 'text-muted small'
-        emptyHint.innerText = '还没有模板，调好样式后点「存为模板」'
+        emptyHint.innerText = '我的模板：调好样式后点「存为模板」，点按即应用到全部图片'
         row.appendChild(emptyHint)
+    } else {
+        // 有模板时只保留一个紧凑的行内标签，手机端省出纵向空间
+        var rowLabel = document.createElement('span')
+        rowLabel.className = 'text-muted small'
+        rowLabel.innerText = '我的模板'
+        row.appendChild(rowLabel)
     }
     presets.forEach(function (preset, index) {
         var chip = document.createElement('button')
@@ -1279,3 +1436,51 @@ document.addEventListener('keydown', function (event) {
         goToNextImage()
     }
 })
+// ── 描边设置偏好记忆：上次的粗细/颜色/圆角/平滑度，刷新后直接沿用（与描边工具页一致） ──
+function loadStrokePrefs() {
+    try {
+        return JSON.parse(localStorage.getItem('photostack-stroke-prefs') || '{}')
+    } catch (e) {
+        return {}
+    }
+}
+
+function saveStrokePrefs() {
+    try {
+        localStorage.setItem('photostack-stroke-prefs', JSON.stringify({
+            width: borderWidthSlider.value,
+            color: borderColorInput.value,
+            round: cornersRoundCheckbox.checked,
+            smoothness: smoothnessSlider.value
+        }))
+    } catch (e) {
+        // 存储不可用时不影响使用
+    }
+}
+
+function restoreStrokePrefs() {
+    var prefs = loadStrokePrefs()
+    if (prefs.width !== undefined && !isNaN(parseFloat(prefs.width))) {
+        borderWidthSlider.value = Math.min(100, Math.max(0, parseFloat(prefs.width)))
+        borderWidthBadge.innerText = borderWidthSlider.value + 'px'
+    }
+    if (prefs.color && /^#[0-9a-fA-F]{6}$/.test(prefs.color)) {
+        borderColorInput.value = prefs.color
+        // change 事件同步内置色板的色块按钮显示
+        borderColorInput.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    if (typeof prefs.round === 'boolean') {
+        cornersRoundCheckbox.checked = prefs.round
+        smoothnessSlider.disabled = !prefs.round
+    }
+    if (prefs.smoothness !== undefined && !isNaN(parseInt(prefs.smoothness))) {
+        smoothnessSlider.value = Math.min(20, Math.max(1, parseInt(prefs.smoothness)))
+        smoothnessValueBadge.innerText = smoothnessSlider.value + '%'
+    }
+}
+
+borderWidthSlider.addEventListener('change', saveStrokePrefs)
+borderColorInput.addEventListener('change', saveStrokePrefs)
+cornersRoundCheckbox.addEventListener('change', saveStrokePrefs)
+smoothnessSlider.addEventListener('change', saveStrokePrefs)
+restoreStrokePrefs()
