@@ -38,6 +38,8 @@ const outlineImageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avi
 
 var errorToast = new bootstrap.Toast(document.getElementById('photostack-outline-error-toast'))
 
+var shareFallbackToast = new bootstrap.Toast(document.getElementById('photostack-outline-share-fallback-toast'))
+
 var importToast = new bootstrap.Toast(document.getElementById('photostack-outline-import-toast'), {
     'autohide': false
 })
@@ -228,6 +230,8 @@ async function renderPreview() {
     previewCanvas.width = out.width
     previewCanvas.height = out.height
     previewCanvas.getContext('2d').drawImage(out, 0, 0)
+    // 预览稳定后后台预生成全尺寸导出文件，保存时即可同步调起分享面板
+    scheduleSaveFile()
 }
 
 // 滑杆等高频操作：120ms 节流刷新预览，配合渲染代数防止旧图覆盖新图
@@ -240,6 +244,69 @@ function schedulePreview() {
         previewTimer = null
         renderPreview()
     }, 120)
+}
+
+// ── 保存文件后台预生成（手机存相册的关键） ──
+// iOS Safari 要求 navigator.share 必须在用户手势仍然有效的时机同步调用，
+// 点击后再等全尺寸渲染 + PNG 编码（1 秒以上）手势就失效了，分享面板弹不出来。
+// 因此预览稳定后在后台预生成当前图的全尺寸导出文件，点击保存时直接分享缓存文件。
+
+var saveFileCache = null // { key, file }
+var saveFileGeneration = 0
+
+// 缓存键：同一张图 + 同一套描边参数才可复用
+function saveFileKey(item) {
+    return [
+        item.url,
+        getStrokePct(),
+        getStrokeColor(),
+        isRoundCorners() ? 'round' : 'square',
+        getMaxEdge()
+    ].join('|')
+}
+
+// 预览渲染完成后延迟触发；翻页、改设置都会重新走到这里，旧的生成直接作废
+function scheduleSaveFile() {
+    var generation = ++saveFileGeneration
+    setTimeout(async function () {
+        if (generation !== saveFileGeneration || isExporting) {
+            return
+        }
+        var item = outlineImages[currentIndex]
+        if (!item || (saveFileCache && (saveFileCache.key === saveFileKey(item)))) {
+            return
+        }
+        try {
+            var canvas = await renderFullCanvas(item)
+            var blob = await new Promise(function (resolve) {
+                canvas.toBlob(resolve, 'image/png')
+            })
+            // 尽早释放全尺寸画布
+            canvas.width = 0
+            canvas.height = 0
+            if (generation !== saveFileGeneration) {
+                return
+            }
+            if (blob) {
+                saveFileCache = {
+                    key: saveFileKey(item),
+                    file: new File([blob], item.name + '.png', {
+                        lastModified: Date.now(),
+                        type: 'image/png'
+                    })
+                }
+            }
+        } catch (error) {
+            console.error('Pre-generate save file error:', error)
+        }
+    }, 350)
+}
+
+function getCachedSaveFile(item) {
+    if (saveFileCache && (saveFileCache.key === saveFileKey(item))) {
+        return saveFileCache.file
+    }
+    return null
 }
 
 // ── 界面状态同步 ──
@@ -460,10 +527,34 @@ function goToNextImage() {
 
 // ── 单张保存当前预览图（全分辨率） ──
 
+// 手机上调起系统分享面板（iOS 选「存储图像」即保存到相册），不支持分享的环境降级为下载
+function shareOrDownload(file) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file] }).catch(function (e) {
+            if (e && e.name === 'AbortError') {
+                return // 用户在分享面板点了取消
+            }
+            console.error('Share failed, falling back to download:', e)
+            saveAs(file)
+            shareFallbackToast.show()
+        })
+    } else {
+        saveAs(file)
+    }
+}
+
 async function saveCurrentImage() {
     if (!outlineImages.length || isExporting) {
         return
     }
+    var item = outlineImages[currentIndex]
+    // 缓存命中：直接在手势内同步分享，分享面板必然弹出
+    var file = getCachedSaveFile(item)
+    if (file) {
+        shareOrDownload(file)
+        return
+    }
+    // 缓存未命中（刚导入或翻页就立刻点）：实时生成后再尝试分享
     var saveButton = document.getElementById('photostack-outline-save-btn')
     var saveButtonText = document.getElementById('photostack-outline-save-btn-text')
     var bbSaveButton = document.getElementById('photostack-outline-bb-save-btn')
@@ -472,7 +563,6 @@ async function saveCurrentImage() {
     var originalText = saveButtonText.innerText
     saveButtonText.innerText = '正在处理…'
     try {
-        var item = outlineImages[currentIndex]
         var canvas = await renderFullCanvas(item)
         var blob = await new Promise(function (resolve) {
             canvas.toBlob(resolve, 'image/png')
@@ -481,21 +571,13 @@ async function saveCurrentImage() {
             errorToast.show()
             return
         }
-        var file = new File([blob], item.name + '.png', {
+        file = new File([blob], item.name + '.png', {
             lastModified: Date.now(),
             type: 'image/png'
         })
-        // 手机上优先调起系统分享（iOS 可直接存入相册），失败则降级为下载保存
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({ files: [file] }).catch(function (e) {
-                if (e && e.name !== 'AbortError') {
-                    console.error('Share failed, falling back to download:', e)
-                    saveAs(file)
-                }
-            })
-        } else {
-            saveAs(file)
-        }
+        // 顺便写入缓存，下次点击即可同步分享
+        saveFileCache = { key: saveFileKey(item), file: file }
+        shareOrDownload(file)
     } catch (error) {
         console.error('Save current image error:', error)
         errorToast.show()
@@ -559,6 +641,12 @@ async function exportAllImages() {
         document.getElementById('photostack-outline-export-progress').classList.add('d-none')
         document.getElementById('photostack-outline-export-done').classList.remove('d-none')
         document.getElementById('photostack-outline-export-done-footer').classList.remove('d-none')
+        // 支持文件分享的移动设备上提供「存入相册」分批分享
+        if (albumSupported()) {
+            albumJob = { total: outlineImages.length, next: 0, saved: 0, skipped: 0, batchNo: 1, chunk: [], phase: 'idle' }
+            document.getElementById('photostack-outline-album-btn').classList.remove('d-none')
+            updateAlbumButton()
+        }
     } catch (error) {
         console.error('Export error:', error)
         errorToast.show()
@@ -571,6 +659,11 @@ async function exportAllImages() {
 
 // 关闭导出弹窗时重置进度界面
 document.getElementById('photostack-outline-export-modal').addEventListener('hidden.bs.modal', function () {
+    albumJob = null
+    var albumButton = document.getElementById('photostack-outline-album-btn')
+    albumButton.classList.add('d-none')
+    albumButton.disabled = false
+    albumButton.innerText = '存入相册'
     document.getElementById('photostack-outline-export-progress').classList.remove('d-none')
     document.getElementById('photostack-outline-export-done').classList.add('d-none')
     document.getElementById('photostack-outline-export-done-footer').classList.add('d-none')
@@ -579,6 +672,123 @@ document.getElementById('photostack-outline-export-modal').addEventListener('hid
     progressBar.setAttribute('style', 'width: 0%')
     document.getElementById('photostack-outline-export-progress-text').innerText = ''
 })
+
+// ── 批量存入相册（导出完成弹窗里的分批分享） ──
+// ZIP 解压后无法直接进相册；iOS 分享面板选「存储图像」可整批入相册，
+// 但 navigator.share 每次都要用户手势、单次载荷太大也会失败，
+// 所以按「每批最多 6 张 / 60MB」分批：后台生成一批 → 用户点一下分享一批。
+
+var albumJob = null // { total, next, saved, skipped, batchNo, chunk, phase }
+
+// 仅在支持文件分享的移动设备上显示「存入相册」入口
+function albumSupported() {
+    var probe = new File(['x'], 'probe.png', { type: 'image/png' })
+    try {
+        return !!(navigator.canShare && navigator.canShare({ files: [probe] }) && ('ontouchstart' in window || navigator.maxTouchPoints > 0))
+    } catch (e) {
+        return false
+    }
+}
+
+function updateAlbumButton() {
+    var btn = document.getElementById('photostack-outline-album-btn')
+    if (!btn || !albumJob) {
+        return
+    }
+    btn.disabled = (albumJob.phase === 'rendering') || (albumJob.phase === 'done')
+    if (albumJob.phase === 'rendering') {
+        btn.innerText = albumJob.saved === 0 ? '正在生成图片…' : '正在生成下一批…'
+    } else if (albumJob.phase === 'ready') {
+        btn.innerText = '存入相册：第 ' + albumJob.batchNo + ' 批（' + albumJob.chunk.length + ' 张）'
+    } else if (albumJob.phase === 'done') {
+        var skipped = albumJob.skipped > 0 ? '，' + albumJob.skipped + ' 张处理失败已跳过' : ''
+        btn.innerText = '已存入相册 ' + albumJob.saved + ' 张' + skipped + ' ✓'
+    }
+}
+
+// 渲染下一批导出文件（随时可被弹窗关闭中断）
+async function renderAlbumChunk() {
+    var MAX_FILES = 6
+    var MAX_BYTES = 60 * 1024 * 1024
+    var chunk = []
+    var bytes = 0
+    while (albumJob && (albumJob.next < albumJob.total) && (chunk.length < MAX_FILES) && ((chunk.length === 0) || (bytes < MAX_BYTES))) {
+        var item = outlineImages[albumJob.next]
+        try {
+            var canvas = await renderFullCanvas(item)
+            var blob = await new Promise(function (resolve) {
+                canvas.toBlob(resolve, 'image/png')
+            })
+            canvas.width = 0
+            canvas.height = 0
+            if (!albumJob) {
+                return
+            }
+            if (blob) {
+                // 文件名带序号前缀，与 ZIP 导出一致，便于识别顺序
+                var num = String(albumJob.next + 1).padStart(3, '0')
+                chunk.push(new File([blob], num + '-' + item.name + '.png', {
+                    lastModified: Date.now(),
+                    type: 'image/png'
+                }))
+                bytes += blob.size
+            } else {
+                albumJob.skipped++
+            }
+        } catch (error) {
+            console.error('Album render failed for ' + item.name, error)
+            if (!albumJob) {
+                return
+            }
+            albumJob.skipped++
+        }
+        albumJob.next++
+    }
+    if (!albumJob) {
+        return
+    }
+    albumJob.chunk = chunk
+    albumJob.phase = chunk.length ? 'ready' : 'done'
+    updateAlbumButton()
+}
+
+async function onAlbumButtonClick() {
+    if (!albumJob || (albumJob.phase === 'rendering')) {
+        return
+    }
+    var btn = document.getElementById('photostack-outline-album-btn')
+    if (albumJob.phase === 'idle') {
+        albumJob.phase = 'rendering'
+        updateAlbumButton()
+        await renderAlbumChunk()
+        return
+    }
+    if (albumJob.phase === 'ready') {
+        // 分享调用同步发生在手势内；await 等用户操作完分享面板再准备下一批
+        try {
+            await navigator.share({ files: albumJob.chunk })
+        } catch (error) {
+            if (error && (error.name === 'AbortError')) {
+                // 用户取消本批，保留进度可重试
+                btn.innerText = '已跳过，重试第 ' + albumJob.batchNo + ' 批'
+                return
+            }
+            console.error('Album share failed:', error)
+            errorToast.show()
+            btn.innerText = '重试第 ' + albumJob.batchNo + ' 批'
+            return
+        }
+        albumJob.saved += albumJob.chunk.length
+        albumJob.batchNo++
+        albumJob.phase = 'rendering'
+        updateAlbumButton()
+        await renderAlbumChunk()
+        return
+    }
+    // done：无需操作
+}
+
+document.getElementById('photostack-outline-album-btn').addEventListener('click', onAlbumButtonClick)
 
 // ── 设置偏好记忆 ──
 
